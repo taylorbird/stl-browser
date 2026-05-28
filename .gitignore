@@ -1,0 +1,26 @@
+staging/
+KozaDesign/
+Gazzaladra/
+Fluid_Prints/
+StudioLoup/
+*.zip
+*.stl
+*.3mf
+*.obj
+*.rar
+*.7z
+node_modules/
+config/
+api/node_modules/
+web/node_modules/
+web/dist/
+test-data/
+.DS_Store
+__pycache__/
+*.db
+*.db-wal
+*.db-shm
+.claude/
+
+# Downloader config (contains Patreon session cookie)
+gallery-dl.conf

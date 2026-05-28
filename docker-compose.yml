@@ -1,0 +1,17 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "3001:3001"
+    volumes:
+      - ${DATA_PATH:-./test-data}:/data:ro
+      - ./config:/config
+    environment:
+      - NODE_ENV=production
+
+  web:
+    build: ./web
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
