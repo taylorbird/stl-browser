@@ -28,7 +28,7 @@ function CreatorAvatar({ creator }) {
   );
 }
 
-export default function BrowsePage({ onSelectModel }) {
+export default function BrowsePage() {
   const [filters, setFilters] = useState({ q: '', creator: '', page: 1, limit: 24 });
   const [data, setData] = useState({ models: [], total: 0 });
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ export default function BrowsePage({ onSelectModel }) {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {data.models.map(model => (
-              <ModelCard key={model.id} model={model} onClick={onSelectModel} />
+              <ModelCard key={model.id} model={model} />
             ))}
           </div>
 

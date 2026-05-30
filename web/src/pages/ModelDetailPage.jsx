@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { fetchModel, fileUrl } from '../api';
+import Header from '../components/Header';
+import LoadingImage from '../components/LoadingImage';
 
 const EXT_COLORS = {
   '.stl': 'bg-blue-900 text-blue-300',
@@ -16,40 +20,65 @@ function extBadge(filename) {
   return <span className={`text-xs px-1.5 py-0.5 rounded ${color}`}>{ext}</span>;
 }
 
-export default function ModelDetail({ modelId, onClose }) {
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+
+export default function ModelDetailPage() {
+  const { id } = useParams();
   const [model, setModel] = useState(null);
   const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
     setActiveImage(0);
-    fetchModel(modelId).then(setModel);
-  }, [modelId]);
+    setModel(null);
+    fetchModel(id).then(setModel);
+  }, [id]);
 
-  if (!model) return <div className="text-gray-500">Loading...</div>;
+  if (!model) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <Header />
+        <div className="flex items-center justify-center py-32">
+          <span className="loading loading-spinner loading-lg text-gray-500" />
+        </div>
+      </div>
+    );
+  }
 
-  const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
-  const imageFiles = model.files.filter(f => imageExts.has('.' + f.split('.').pop().toLowerCase()));
-  const downloadFiles = model.files.filter(f => !imageExts.has('.' + f.split('.').pop().toLowerCase()));
+  const imageFiles = model.files.filter(f => IMAGE_EXTS.has('.' + f.split('.').pop().toLowerCase()));
+  const downloadFiles = model.files.filter(f => !IMAGE_EXTS.has('.' + f.split('.').pop().toLowerCase()));
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto">
-      <div className="max-w-4xl mx-auto my-8 bg-gray-900 rounded-xl border border-gray-700">
-        <div className="flex justify-between items-center p-4 border-b border-gray-800">
-          <h2 className="text-xl font-bold">{model.title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
-        </div>
+    <div className="container mx-auto px-4 py-6 max-w-7xl">
+      <Header />
 
-        <div className="p-4 grid md:grid-cols-2 gap-6">
+      <Link
+        to="/"
+        className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4 transition-colors"
+      >
+        &larr; Back to browse
+      </Link>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="text-2xl font-bold mb-6">{model.title}</h1>
+
+        <div className="grid md:grid-cols-2 gap-8">
           <div>
             {imageFiles.length > 0 && (
               <>
-                <img
-                  src={fileUrl(model.id, imageFiles[activeImage])}
-                  alt={model.title}
-                  className="w-full rounded-lg"
-                />
+                <div className="aspect-square bg-gray-800 rounded-xl overflow-hidden">
+                  <LoadingImage
+                    key={imageFiles[activeImage]}
+                    src={fileUrl(model.id, imageFiles[activeImage])}
+                    alt={model.title}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 {imageFiles.length > 1 && (
-                  <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+                  <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
                     {imageFiles.map((img, i) => (
                       <button
                         key={img}
@@ -58,13 +87,18 @@ export default function ModelDetail({ modelId, onClose }) {
                           i === activeImage ? 'border-blue-500' : 'border-transparent hover:border-gray-600'
                         }`}
                       >
-                        <img src={fileUrl(model.id, img)} alt="" className="w-full h-full object-cover" />
+                        <LoadingImage
+                          src={fileUrl(model.id, img)}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
                       </button>
                     ))}
                   </div>
                 )}
               </>
             )}
+
             <div className="mt-4 flex flex-wrap gap-2 text-sm text-gray-400">
               <span>{model.creator}</span>
               <span>&middot;</span>
@@ -81,14 +115,14 @@ export default function ModelDetail({ modelId, onClose }) {
           </div>
 
           <div>
-            <div className="prose prose-invert prose-sm max-h-48 overflow-y-auto mb-4 text-gray-300 whitespace-pre-wrap">
+            <div className="prose prose-invert prose-sm max-h-64 overflow-y-auto mb-6 text-gray-300 whitespace-pre-wrap">
               {model.content}
             </div>
 
-            <h3 className="text-sm font-semibold text-gray-400 mb-2">
+            <h3 className="text-sm font-semibold text-gray-400 mb-3">
               Files ({downloadFiles.length})
             </h3>
-            <div className="space-y-1 max-h-80 overflow-y-auto">
+            <div className="space-y-1 max-h-96 overflow-y-auto">
               {downloadFiles.map(file => (
                 <div key={file} className="flex items-center justify-between bg-gray-800 rounded px-3 py-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -106,7 +140,7 @@ export default function ModelDetail({ modelId, onClose }) {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

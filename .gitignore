@@ -1,4 +1,6 @@
 staging/
+staging-import/
+staging-images/
 KozaDesign/
 Gazzaladra/
 Fluid_Prints/
@@ -22,5 +24,9 @@ __pycache__/
 *.db-shm
 .claude/
 
-# Downloader config (contains Patreon session cookie)
+# Downloader configs (contain Patreon session cookie)
 gallery-dl.conf
+gallery-dl-images-only.conf
+
+# Environment (contains secrets)
+.env

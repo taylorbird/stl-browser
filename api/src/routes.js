@@ -15,6 +15,13 @@ export function createRoutes(db, dataDir) {
     FROM models ORDER BY creator
   `);
 
+  router.get('/api/me', (req, res) => {
+    const email = req.headers['remote-email'] || null;
+    const name = req.headers['remote-name'] || null;
+    const user = req.headers['remote-user'] || null;
+    res.json({ email, name, user });
+  });
+
   const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 
   function findLogo(creatorFolder) {

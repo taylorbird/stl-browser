@@ -1,11 +1,10 @@
 import { useState, useCallback } from 'react';
 import { triggerReindex, deleteModels } from './api';
 import BrowsePage from './pages/BrowsePage';
-import ModelDetail from './components/ModelDetail';
 import StaleModelsDialog from './components/StaleModelsDialog';
+import Header from './components/Header';
 
 export default function App() {
-  const [selectedModel, setSelectedModel] = useState(null);
   const [reindexing, setReindexing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [staleModels, setStaleModels] = useState(null);
@@ -38,20 +37,8 @@ export default function App() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">STL Browser</h1>
-        <button
-          onClick={handleReindex}
-          disabled={reindexing}
-          className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-50"
-        >
-          {reindexing ? 'Reindexing...' : 'Reindex'}
-        </button>
-      </header>
-      <BrowsePage key={refreshKey} onSelectModel={m => setSelectedModel(m)} />
-      {selectedModel && (
-        <ModelDetail modelId={selectedModel.id} onClose={() => setSelectedModel(null)} />
-      )}
+      <Header reindexing={reindexing} onReindex={handleReindex} />
+      <BrowsePage key={refreshKey} />
       {staleModels && (
         <StaleModelsDialog
           models={staleModels}

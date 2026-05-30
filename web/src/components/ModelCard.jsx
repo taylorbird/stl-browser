@@ -1,14 +1,16 @@
+import { Link } from 'react-router-dom';
 import { previewUrl } from '../api';
+import LoadingImage from './LoadingImage';
 
-export default function ModelCard({ model, onClick }) {
+export default function ModelCard({ model }) {
   return (
-    <div
-      onClick={() => onClick(model)}
-      className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden cursor-pointer hover:border-gray-600 transition-colors"
+    <Link
+      to={`/models/${model.id}`}
+      className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden cursor-pointer hover:border-gray-600 transition-colors block"
     >
       <div className="aspect-square bg-gray-800 overflow-hidden">
         {model.preview_filename ? (
-          <img
+          <LoadingImage
             src={previewUrl(model.id)}
             alt={model.title}
             className="w-full h-full object-cover"
@@ -30,6 +32,6 @@ export default function ModelCard({ model, onClick }) {
           </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

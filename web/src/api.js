@@ -1,5 +1,10 @@
 const BASE = '/api';
 
+export async function fetchMe() {
+  const res = await fetch(`${BASE}/me`);
+  return res.json();
+}
+
 export async function fetchModels(params = {}) {
   const query = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

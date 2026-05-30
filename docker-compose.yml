@@ -1,16 +1,22 @@
 services:
   api:
-    build: ./api
+    image: taylorlbird/stl-browser-api:latest
+    restart: unless-stopped
     ports:
       - "3001:3001"
     volumes:
-      - ${DATA_PATH:-./test-data}:/data:ro
-      - ./config:/config
+      - /mnt/nas/projects/3dprint/models-new:/data:ro
+      - /opt/docker_apps/stlfinder/config:/config
     environment:
       - NODE_ENV=production
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
   web:
-    build: ./web
+    image: taylorlbird/stl-browser-web:latest
+    restart: unless-stopped
     ports:
       - "3000:80"
     depends_on:
