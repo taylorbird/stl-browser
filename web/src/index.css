@@ -2,3 +2,8 @@
 @plugin "daisyui" {
   themes: dark;
 }
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Bebas Neue', sans-serif;
+}

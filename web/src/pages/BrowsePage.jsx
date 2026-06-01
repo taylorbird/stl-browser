@@ -3,28 +3,45 @@ import { fetchModels, fetchCreators, creatorLogoUrl } from '../api';
 import SearchBar from '../components/SearchBar';
 import ModelCard from '../components/ModelCard';
 
-const MAX_CREATOR_CHIPS = 8;
-
 const AVATAR_COLORS = [
-  'bg-rose-700', 'bg-sky-700', 'bg-emerald-700', 'bg-amber-700',
-  'bg-violet-700', 'bg-teal-700', 'bg-pink-700', 'bg-indigo-700',
+  'from-rose-800 to-rose-950', 'from-sky-800 to-sky-950', 'from-emerald-800 to-emerald-950', 'from-amber-800 to-amber-950',
+  'from-violet-800 to-violet-950', 'from-teal-800 to-teal-950', 'from-pink-800 to-pink-950', 'from-indigo-800 to-indigo-950',
 ];
 
-function CreatorAvatar({ creator }) {
-  if (creator.hasLogo) {
-    return (
-      <img
-        src={creatorLogoUrl(creator.folder)}
-        alt=""
-        className="w-10 h-10 rounded-lg object-cover"
-      />
-    );
-  }
-  const colorIdx = creator.name.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) % AVATAR_COLORS.length;
+function creatorColor(name) {
+  const idx = name.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) % AVATAR_COLORS.length;
+  return AVATAR_COLORS[idx];
+}
+
+function CreatorChip({ creator, active, onClick }) {
+  const hasLogo = creator.hasLogo;
+
   return (
-    <span className={`inline-flex items-center justify-center w-10 h-10 rounded-lg text-base font-bold text-white ${AVATAR_COLORS[colorIdx]}`}>
-      {creator.name.charAt(0).toUpperCase()}
-    </span>
+    <button
+      onClick={onClick}
+      className={`relative overflow-hidden rounded-xl h-40 min-w-[14rem] flex-shrink-0 transition-all duration-200 ${
+        active
+          ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950 scale-105'
+          : 'hover:scale-105 hover:brightness-125'
+      }`}
+    >
+      {hasLogo ? (
+        <img
+          src={creatorLogoUrl(creator.folder)}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className={`absolute inset-0 bg-gradient-to-br ${creatorColor(creator.name)}`} />
+      )}
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+      <div className="relative h-full flex items-end p-3.5">
+        <span className="text-2xl text-amber-200 leading-none font-display tracking-widest uppercase [text-shadow:_0_2px_10px_rgb(0_0_0_/_90%)]">
+          {creator.name}
+        </span>
+      </div>
+    </button>
   );
 }
 
@@ -52,26 +69,24 @@ export default function BrowsePage() {
     <div>
       <SearchBar filters={filters} onChange={setFilters} />
 
-      {creators.length > 1 && creators.length <= MAX_CREATOR_CHIPS && (
-        <div className="flex flex-wrap gap-3 mb-4">
+      {creators.length > 1 && (
+        <div>
+        <h2 className="text-lg font-semibold text-gray-300 mb-3">Creators</h2>
+        <div className="flex flex-wrap gap-3 mb-6">
           {creators.map(c => (
-            <button
+            <CreatorChip
               key={c.name}
+              creator={c}
+              active={filters.creator === c.name}
               onClick={() => setFilters(f => ({ ...f, creator: f.creator === c.name ? '' : c.name, page: 1 }))}
-              className={`flex flex-col items-center gap-1.5 px-5 py-3 text-sm rounded-xl border transition-colors ${
-                filters.creator === c.name
-                  ? 'bg-blue-600 border-blue-500 text-white'
-                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-              }`}
-            >
-              <CreatorAvatar creator={c} />
-              {c.name}
-            </button>
+            />
           ))}
+        </div>
         </div>
       )}
 
       <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-300">Models</h2>
         <p className="text-sm text-gray-400">{data.total} models</p>
       </div>
 
