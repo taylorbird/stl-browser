@@ -19,9 +19,9 @@ function CreatorChip({ creator, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`relative overflow-hidden rounded-xl h-40 min-w-[14rem] flex-shrink-0 transition-all duration-200 ${
+      className={`relative overflow-hidden rounded-xl h-24 w-36 flex-shrink-0 transition-all duration-200 ${
         active
-          ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950 scale-105'
+          ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-950 scale-105'
           : 'hover:scale-105 hover:brightness-125'
       }`}
     >
@@ -36,8 +36,8 @@ function CreatorChip({ creator, active, onClick }) {
       )}
       <div className="absolute inset-0 bg-black/50" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-      <div className="relative h-full flex items-end p-3.5">
-        <span className="text-2xl text-amber-200 leading-none font-display tracking-widest uppercase [text-shadow:_0_2px_10px_rgb(0_0_0_/_90%)]">
+      <div className="relative h-full flex items-end p-2.5">
+        <span className="text-base text-amber-200 leading-none font-display tracking-widest uppercase [text-shadow:_0_2px_8px_rgb(0_0_0_/_90%)]">
           {creator.name}
         </span>
       </div>
@@ -71,30 +71,32 @@ export default function BrowsePage() {
 
       {creators.length > 1 && (
         <div>
-        <h2 className="text-lg font-semibold text-gray-300 mb-3">Creators</h2>
-        <div className="flex flex-wrap gap-3 mb-6">
-          {creators.map(c => (
-            <CreatorChip
-              key={c.name}
-              creator={c}
-              active={filters.creator === c.name}
-              onClick={() => setFilters(f => ({ ...f, creator: f.creator === c.name ? '' : c.name, page: 1 }))}
-            />
-          ))}
-        </div>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Creators</h2>
+          <div className="flex flex-wrap gap-3 mb-6">
+            {creators.map(c => (
+              <CreatorChip
+                key={c.name}
+                creator={c}
+                active={filters.creator === c.name}
+                onClick={() => setFilters(f => ({ ...f, creator: f.creator === c.name ? '' : c.name, page: 1 }))}
+              />
+            ))}
+          </div>
         </div>
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-300">Models</h2>
-        <p className="text-sm text-gray-400">{data.total} models</p>
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
+          {filters.creator || 'All Models'}
+          <span className="ml-2 text-gray-600">({data.total})</span>
+        </h2>
       </div>
 
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {data.models.map(model => (
               <ModelCard key={model.id} model={model} />
             ))}
@@ -105,7 +107,7 @@ export default function BrowsePage() {
               <button
                 disabled={filters.page <= 1}
                 onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
-                className="px-4 py-2 bg-gray-800 rounded-lg disabled:opacity-30 hover:bg-gray-700"
+                className="px-4 py-2 bg-gray-800 rounded-lg disabled:opacity-30 hover:bg-gray-700 transition-colors"
               >
                 Previous
               </button>
@@ -115,7 +117,7 @@ export default function BrowsePage() {
               <button
                 disabled={filters.page >= totalPages}
                 onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
-                className="px-4 py-2 bg-gray-800 rounded-lg disabled:opacity-30 hover:bg-gray-700"
+                className="px-4 py-2 bg-gray-800 rounded-lg disabled:opacity-30 hover:bg-gray-700 transition-colors"
               >
                 Next
               </button>
