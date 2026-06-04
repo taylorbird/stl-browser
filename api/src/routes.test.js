@@ -258,4 +258,21 @@ describe('API routes', () => {
       await send(app, `/api/collections/${coll.id}`, 'DELETE');
     });
   });
+
+  describe('counts', () => {
+    it('GET /api/counts returns nav counts', async () => {
+      const { status, body } = await request(app, '/api/counts');
+      assert.equal(status, 200);
+      assert.equal(body.all, 2); // the two base fixtures
+      assert.equal(typeof body.recent, 'number');
+      assert.equal(typeof body.favorites, 'number');
+      assert.equal(typeof body.missing, 'number');
+    });
+
+    it('GET /api/creators includes model counts', async () => {
+      const { body } = await request(app, '/api/creators');
+      const a = body.find(c => c.name === 'CreatorA');
+      assert.equal(a.count, 1);
+    });
+  });
 });

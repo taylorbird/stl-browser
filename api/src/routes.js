@@ -11,8 +11,8 @@ export function createRoutes(db, dataDir) {
   `);
 
   const getAllCreators = db.prepare(`
-    SELECT DISTINCT creator, substr(folder_path, 1, instr(folder_path, '/') - 1) as folder
-    FROM models ORDER BY creator
+    SELECT creator, substr(folder_path, 1, instr(folder_path, '/') - 1) as folder, COUNT(*) as count
+    FROM models GROUP BY creator, folder ORDER BY creator
   `);
 
   router.get('/api/me', (req, res) => {
@@ -190,6 +190,7 @@ export function createRoutes(db, dataDir) {
     const creators = rows.map(r => ({
       name: r.creator,
       folder: r.folder,
+      count: r.count,
       hasLogo: !!findLogo(r.folder),
     }));
     res.json(creators);
@@ -323,6 +324,21 @@ export function createRoutes(db, dataDir) {
     if (isNaN(id) || isNaN(modelId)) return res.status(400).json({ error: 'Invalid id' });
     deleteCollectionModel.run(id, modelId);
     res.json({ added: false });
+  });
+
+  // ── Sidebar nav counts ──
+  const countAll = db.prepare('SELECT COUNT(*) n FROM models');
+  const countRecent = db.prepare("SELECT COUNT(*) n FROM models WHERE date >= date('now','-30 day')");
+  const countFavorites = db.prepare('SELECT COUNT(*) n FROM favorites');
+  const countMissing = db.prepare("SELECT COUNT(*) n FROM models WHERE lower(files) NOT LIKE '%.stl%'");
+
+  router.get('/api/counts', (req, res) => {
+    res.json({
+      all: countAll.get().n,
+      recent: countRecent.get().n,
+      favorites: countFavorites.get().n,
+      missing: countMissing.get().n,
+    });
   });
 
   // Which collections contain this model (for the detail page)
