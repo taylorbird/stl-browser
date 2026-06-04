@@ -60,6 +60,7 @@ describe('API routes', () => {
     reindex(db, dataDir);
 
     app = express();
+    app.use(express.json());
     app.use(createRoutes(db, dataDir));
   });
 
@@ -150,6 +151,61 @@ describe('API routes', () => {
       await send(app, `/api/favorites/${id}`, 'DELETE');
       const { body } = await request(app, '/api/favorites');
       assert.deepEqual(body.ids, []);
+    });
+  });
+
+  describe('collections', () => {
+    let collId, modelId;
+
+    it('starts empty', async () => {
+      const { status, body } = await request(app, '/api/collections');
+      assert.equal(status, 200);
+      assert.deepEqual(body, []);
+    });
+
+    it('POST creates a collection', async () => {
+      const { status, body } = await send(app, '/api/collections', 'POST', { name: 'To print', hue: 28 });
+      assert.equal(status, 200);
+      assert.equal(body.name, 'To print');
+      assert.equal(body.hue, 28);
+      assert.ok(body.id);
+      collId = body.id;
+    });
+
+    it('POST rejects empty name', async () => {
+      const { status } = await send(app, '/api/collections', 'POST', { name: '  ' });
+      assert.equal(status, 400);
+    });
+
+    it('PUT adds a model to a collection', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      modelId = list.models[0].id;
+      const { status } = await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT');
+      assert.equal(status, 200);
+      const { body } = await request(app, '/api/collections');
+      assert.equal(body[0].count, 1);
+    });
+
+    it('GET /api/models/:id/collections lists memberships', async () => {
+      const { status, body } = await request(app, `/api/models/${modelId}/collections`);
+      assert.equal(status, 200);
+      assert.deepEqual(body.ids, [collId]);
+    });
+
+    it('DELETE removes a model from a collection', async () => {
+      await send(app, `/api/collections/${collId}/models/${modelId}`, 'DELETE');
+      const { body } = await request(app, '/api/collections');
+      assert.equal(body[0].count, 0);
+    });
+
+    it('DELETE removes a collection and cascades membership rows', async () => {
+      // Re-add membership so the cascade has something to clear
+      await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT');
+      await send(app, `/api/collections/${collId}`, 'DELETE');
+      const { body } = await request(app, '/api/collections');
+      assert.deepEqual(body, []);
+      const orphans = db.prepare('SELECT COUNT(*) n FROM collection_models WHERE collection_id = ?').get(collId);
+      assert.equal(orphans.n, 0);
     });
   });
 });

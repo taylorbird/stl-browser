@@ -253,5 +253,69 @@ export function createRoutes(db, dataDir) {
     res.json({ favorited: false });
   });
 
+  // ── Collections ──
+  const listCollections = db.prepare(`
+    SELECT c.id, c.name, c.hue, COUNT(cm.model_id) AS count
+    FROM collections c
+    LEFT JOIN collection_models cm ON cm.collection_id = c.id
+    GROUP BY c.id ORDER BY c.created_at
+  `);
+  const insertCollection = db.prepare('INSERT INTO collections (name, hue, created_at) VALUES (?, ?, ?)');
+  const getCollection = db.prepare('SELECT * FROM collections WHERE id = ?');
+  const deleteCollection = db.prepare('DELETE FROM collections WHERE id = ?');
+  const insertCollectionModel = db.prepare(
+    'INSERT OR IGNORE INTO collection_models (collection_id, model_id, added_at) VALUES (?, ?, ?)'
+  );
+  const deleteCollectionModel = db.prepare(
+    'DELETE FROM collection_models WHERE collection_id = ? AND model_id = ?'
+  );
+  const listCollectionsForModel = db.prepare(
+    'SELECT collection_id FROM collection_models WHERE model_id = ?'
+  );
+
+  router.get('/api/collections', (req, res) => {
+    res.json(listCollections.all());
+  });
+
+  router.post('/api/collections', (req, res) => {
+    const name = (req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const hue = Number.isInteger(req.body?.hue) ? ((req.body.hue % 360) + 360) % 360 : 28;
+    const { lastInsertRowid } = insertCollection.run(name, hue, new Date().toISOString());
+    res.json({ id: lastInsertRowid, name, hue, count: 0 });
+  });
+
+  router.delete('/api/collections/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    deleteCollection.run(id);
+    res.json({ deleted: true });
+  });
+
+  router.put('/api/collections/:id/models/:modelId', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const modelId = parseInt(req.params.modelId, 10);
+    if (isNaN(id) || isNaN(modelId)) return res.status(400).json({ error: 'Invalid id' });
+    if (!getCollection.get(id)) return res.status(404).json({ error: 'Collection not found' });
+    if (!getModelById.get(modelId)) return res.status(404).json({ error: 'Model not found' });
+    insertCollectionModel.run(id, modelId, new Date().toISOString());
+    res.json({ added: true });
+  });
+
+  router.delete('/api/collections/:id/models/:modelId', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const modelId = parseInt(req.params.modelId, 10);
+    if (isNaN(id) || isNaN(modelId)) return res.status(400).json({ error: 'Invalid id' });
+    deleteCollectionModel.run(id, modelId);
+    res.json({ added: false });
+  });
+
+  // Which collections contain this model (for the detail page)
+  router.get('/api/models/:id/collections', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    res.json({ ids: listCollectionsForModel.all(id).map(r => r.collection_id) });
+  });
+
   return router;
 }
