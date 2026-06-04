@@ -116,6 +116,8 @@ export default function App() {
         <BrowsePage
           key={refreshKey}
           view={view}
+          onViewChange={setView}
+          creators={creators}
           sort={sort}
           onSortChange={setSort}
           q={debouncedQ}

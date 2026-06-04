@@ -40,7 +40,7 @@ export default function FeaturedBento({ models }) {
   const [hero, ...small] = models.slice(0, 5);
 
   return (
-    <div className="mb-[30px] grid grid-cols-2 gap-3.5 min-[1180px]:grid-cols-[1.5fr_1fr_1fr] min-[1180px]:grid-rows-[188px_188px]">
+    <div className="mb-12 grid grid-cols-2 gap-3.5 min-[1180px]:grid-cols-[1.5fr_1fr_1fr] min-[1180px]:grid-rows-[188px_188px]">
       {/* Large card */}
       <Link
         to={`/models/${hero.id}`}

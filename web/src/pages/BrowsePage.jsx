@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchModels } from '../api';
 import ModelCard from '../components/ModelCard';
 import FeaturedBento from '../components/FeaturedBento';
+import CreatorShelf from '../components/CreatorShelf';
 import Icon from '../components/Icon';
 
 const LIMIT = 24;
@@ -41,7 +42,7 @@ const EMPTY_HINTS = {
   collection: 'This collection is empty.',
 };
 
-export default function BrowsePage({ view, sort, onSortChange, q, favorites, onToggleFavorite, reindexing, onReindex }) {
+export default function BrowsePage({ view, onViewChange, sort, onSortChange, q, creators, favorites, onToggleFavorite, reindexing, onReindex }) {
   const [models, setModels] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -167,6 +168,11 @@ export default function BrowsePage({ view, sort, onSortChange, q, favorites, onT
             </div>
             <FeaturedBento models={featured} />
           </>
+        )}
+
+        {/* Creator shelf — homepage + creator views, hidden while searching */}
+        {(view.type === 'all' || view.type === 'creator') && !q && (
+          <CreatorShelf creators={creators} view={view} onViewChange={onViewChange} />
         )}
 
         {/* Grid meta row */}
