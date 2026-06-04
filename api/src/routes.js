@@ -83,6 +83,21 @@ export function createRoutes(db, dataDir) {
       params.push(creator);
     }
 
+    if (req.query.favorites === '1') {
+      conditions.push('m.id IN (SELECT model_id FROM favorites)');
+    }
+    if (req.query.missing === '1') {
+      conditions.push("lower(m.files) NOT LIKE '%.stl%'");
+    }
+    if (req.query.recent === '1') {
+      conditions.push("m.date >= date('now','-30 day')");
+    }
+    const collectionId = parseInt(req.query.collection, 10);
+    if (!isNaN(collectionId)) {
+      conditions.push('m.id IN (SELECT model_id FROM collection_models WHERE collection_id = ?)');
+      params.push(collectionId);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countRow = db.prepare(

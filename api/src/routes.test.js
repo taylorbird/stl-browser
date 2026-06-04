@@ -208,4 +208,54 @@ describe('API routes', () => {
       assert.equal(orphans.n, 0);
     });
   });
+
+  describe('model list filters', () => {
+    let extraId, favId;
+
+    before(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { lastInsertRowid } = db.prepare(`
+        INSERT INTO models (folder_path, title, creator, date, content, files, preview_filename, indexed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        'CreatorA/2026-06-01-no-stl-model', 'No STL Model', 'CreatorA',
+        today, '', '["photo.jpg"]', null, new Date().toISOString()
+      );
+      extraId = Number(lastInsertRowid);
+    });
+
+    after(() => {
+      db.prepare('DELETE FROM models WHERE id = ?').run(extraId);
+      if (favId) db.prepare('DELETE FROM favorites WHERE model_id = ?').run(favId);
+    });
+
+    it('favorites=1 returns only favorited models', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      favId = list.models[0].id;
+      await send(app, `/api/favorites/${favId}`, 'PUT');
+      const { body } = await request(app, '/api/models?favorites=1');
+      assert.equal(body.total, 1);
+      assert.equal(body.models[0].id, favId);
+    });
+
+    it('missing=1 returns models with no .stl files', async () => {
+      const { body } = await request(app, '/api/models?missing=1');
+      assert.equal(body.total, 1);
+      assert.equal(body.models[0].id, extraId);
+    });
+
+    it('recent=1 returns models dated within 30 days', async () => {
+      const { body } = await request(app, '/api/models?recent=1');
+      assert.equal(body.total, 1);
+      assert.equal(body.models[0].id, extraId);
+    });
+
+    it('collection=<id> returns that collection\'s models', async () => {
+      const { body: coll } = await send(app, '/api/collections', 'POST', { name: 'Filter Test', hue: 150 });
+      await send(app, `/api/collections/${coll.id}/models/${extraId}`, 'PUT');
+      const { body } = await request(app, `/api/models?collection=${coll.id}`);
+      assert.equal(body.total, 1);
+      assert.equal(body.models[0].id, extraId);
+      await send(app, `/api/collections/${coll.id}`, 'DELETE');
+    });
+  });
 });
