@@ -37,6 +37,56 @@ body {
   border: 3px solid var(--color-canvas);
 }
 
+/* model description markdown (detail-page handoff "About" spec) */
+.prose-manifold h1,
+.prose-manifold h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--color-ink);
+  margin: 1.2em 0 0.5em;
+}
+.prose-manifold p {
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--color-dim);
+  margin: 0 0 0.9em;
+}
+.prose-manifold strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.prose-manifold a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+.prose-manifold a:hover {
+  text-decoration: underline;
+}
+.prose-manifold ul {
+  list-style: none;
+  margin: 0 0 0.9em;
+  padding: 0;
+}
+.prose-manifold li {
+  position: relative;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--color-dim);
+  margin-bottom: 4px;
+}
+.prose-manifold li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.72em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
 /* sidebar creators list scrollbar (handoff: 8px) */
 .sidebar-scroll::-webkit-scrollbar { width: 8px; }
 .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }

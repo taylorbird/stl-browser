@@ -139,9 +139,20 @@ export function createRoutes(db, dataDir) {
     const model = getModelById.get(id);
     if (!model) return res.status(404).json({ error: 'Model not found' });
 
+    const files = JSON.parse(model.files);
+    const fileDetails = files.map(name => {
+      try {
+        const { size } = statSync(join(dataDir, model.folder_path, name));
+        return { name, size };
+      } catch {
+        return { name, size: null };
+      }
+    });
+
     res.json({
       ...model,
-      files: JSON.parse(model.files),
+      files,
+      fileDetails,
     });
   });
 

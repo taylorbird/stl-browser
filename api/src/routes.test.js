@@ -120,6 +120,15 @@ describe('API routes', () => {
     assert.ok(Array.isArray(body.files));
   });
 
+  it('GET /api/models/:id includes file sizes', async () => {
+    const list = await request(app, '/api/models?creator=CreatorA');
+    const id = list.body.models[0].id;
+    const { body } = await request(app, `/api/models/${id}`);
+    assert.ok(Array.isArray(body.fileDetails));
+    const stl = body.fileDetails.find(f => f.name === 'part.stl');
+    assert.equal(stl.size, 3); // fixture content is 'stl'
+  });
+
   it('GET /api/creators returns unique creators', async () => {
     const { body } = await request(app, '/api/creators');
     const names = body.map(c => c.name).sort();

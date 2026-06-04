@@ -1,11 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchMe, creatorLogoUrl } from '../api';
+import { monogram } from '../utils';
 import Icon from './Icon';
-
-function monogram(name) {
-  const words = name.split(/[\s_-]+/).filter(Boolean);
-  return (words.length > 1 ? words[0][0] + words[1][0] : name.slice(0, 2)).toUpperCase();
-}
 
 function NavItem({ icon, label, count, active, onClick }) {
   return (
