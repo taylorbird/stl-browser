@@ -29,6 +29,25 @@ export function initDb(path = DB_PATH) {
       title, creator, content,
       content=''
     );
+
+    CREATE TABLE IF NOT EXISTS favorites (
+      model_id INTEGER PRIMARY KEY REFERENCES models(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS collections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      hue INTEGER NOT NULL DEFAULT 28,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_models (
+      collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+      model_id INTEGER NOT NULL REFERENCES models(id) ON DELETE CASCADE,
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (collection_id, model_id)
+    );
   `);
 
   return db;
