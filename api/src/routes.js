@@ -93,7 +93,10 @@ export function createRoutes(db, dataDir) {
     }
 
     if (req.query.favorites === '1') {
-      conditions.push('m.id IN (SELECT model_id FROM favorites)');
+      const user = userId(req);
+      if (!user) return res.json({ models: [], total: 0, page, limit });
+      conditions.push('m.id IN (SELECT model_id FROM favorites WHERE user_id = ?)');
+      params.push(user);
     }
     if (req.query.missing === '1') {
       conditions.push("lower(m.files) NOT LIKE '%.stl%'");
@@ -103,8 +106,14 @@ export function createRoutes(db, dataDir) {
     }
     const collectionId = parseInt(req.query.collection, 10);
     if (!isNaN(collectionId)) {
-      conditions.push('m.id IN (SELECT model_id FROM collection_models WHERE collection_id = ?)');
-      params.push(collectionId);
+      const user = userId(req);
+      if (!user) return res.json({ models: [], total: 0, page, limit });
+      conditions.push(`m.id IN (
+        SELECT cm.model_id FROM collection_models cm
+        JOIN collections c ON c.id = cm.collection_id
+        WHERE cm.collection_id = ? AND c.owner = ?
+      )`);
+      params.push(collectionId, user);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -265,83 +274,109 @@ export function createRoutes(db, dataDir) {
     res.json({ deleted });
   });
 
-  // ── Favorites ──
-  const listFavorites = db.prepare('SELECT model_id FROM favorites ORDER BY created_at DESC');
-  const insertFavorite = db.prepare('INSERT OR IGNORE INTO favorites (model_id, created_at) VALUES (?, ?)');
-  const deleteFavorite = db.prepare('DELETE FROM favorites WHERE model_id = ?');
+  // ── Identity (proxy-auth headers from TinyAuth/Authelia/etc.) ──
+  // Writes require an identity; anonymous reads return empty user-scoped data.
+  function userId(req) {
+    return req.headers['remote-user'] || req.headers['remote-email'] || null;
+  }
+
+  // ── Favorites (per-user) ──
+  const listFavorites = db.prepare('SELECT model_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC');
+  const insertFavorite = db.prepare('INSERT OR IGNORE INTO favorites (user_id, model_id, created_at) VALUES (?, ?, ?)');
+  const deleteFavorite = db.prepare('DELETE FROM favorites WHERE user_id = ? AND model_id = ?');
 
   router.get('/api/favorites', (req, res) => {
-    res.json({ ids: listFavorites.all().map(r => r.model_id) });
+    const user = userId(req);
+    if (!user) return res.json({ ids: [] });
+    res.json({ ids: listFavorites.all(user).map(r => r.model_id) });
   });
 
   router.put('/api/favorites/:id', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
     if (!getModelById.get(id)) return res.status(404).json({ error: 'Model not found' });
-    insertFavorite.run(id, new Date().toISOString());
+    insertFavorite.run(user, id, new Date().toISOString());
     res.json({ favorited: true });
   });
 
   router.delete('/api/favorites/:id', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
-    deleteFavorite.run(id);
+    deleteFavorite.run(user, id);
     res.json({ favorited: false });
   });
 
-  // ── Collections ──
+  // ── Collections (per-user) ──
   const listCollections = db.prepare(`
     SELECT c.id, c.name, c.hue, COUNT(cm.model_id) AS count
     FROM collections c
     LEFT JOIN collection_models cm ON cm.collection_id = c.id
+    WHERE c.owner = ?
     GROUP BY c.id ORDER BY c.created_at
   `);
-  const insertCollection = db.prepare('INSERT INTO collections (name, hue, created_at) VALUES (?, ?, ?)');
-  const getCollection = db.prepare('SELECT * FROM collections WHERE id = ?');
-  const deleteCollection = db.prepare('DELETE FROM collections WHERE id = ?');
+  const insertCollection = db.prepare('INSERT INTO collections (owner, name, hue, created_at) VALUES (?, ?, ?, ?)');
+  const getOwnedCollection = db.prepare('SELECT * FROM collections WHERE id = ? AND owner = ?');
+  const deleteOwnedCollection = db.prepare('DELETE FROM collections WHERE id = ? AND owner = ?');
   const insertCollectionModel = db.prepare(
     'INSERT OR IGNORE INTO collection_models (collection_id, model_id, added_at) VALUES (?, ?, ?)'
   );
   const deleteCollectionModel = db.prepare(
     'DELETE FROM collection_models WHERE collection_id = ? AND model_id = ?'
   );
-  const listCollectionsForModel = db.prepare(
-    'SELECT collection_id FROM collection_models WHERE model_id = ?'
-  );
+  const listCollectionsForModel = db.prepare(`
+    SELECT cm.collection_id FROM collection_models cm
+    JOIN collections c ON c.id = cm.collection_id
+    WHERE cm.model_id = ? AND c.owner = ?
+  `);
 
   router.get('/api/collections', (req, res) => {
-    res.json(listCollections.all());
+    const user = userId(req);
+    if (!user) return res.json([]);
+    res.json(listCollections.all(user));
   });
 
   router.post('/api/collections', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
     const name = (req.body?.name || '').trim();
     if (!name) return res.status(400).json({ error: 'name required' });
     const hue = Number.isInteger(req.body?.hue) ? ((req.body.hue % 360) + 360) % 360 : 28;
-    const { lastInsertRowid } = insertCollection.run(name, hue, new Date().toISOString());
+    const { lastInsertRowid } = insertCollection.run(user, name, hue, new Date().toISOString());
     res.json({ id: lastInsertRowid, name, hue, count: 0 });
   });
 
   router.delete('/api/collections/:id', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
-    deleteCollection.run(id);
+    deleteOwnedCollection.run(id, user);
     res.json({ deleted: true });
   });
 
   router.put('/api/collections/:id/models/:modelId', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
     const id = parseInt(req.params.id, 10);
     const modelId = parseInt(req.params.modelId, 10);
     if (isNaN(id) || isNaN(modelId)) return res.status(400).json({ error: 'Invalid id' });
-    if (!getCollection.get(id)) return res.status(404).json({ error: 'Collection not found' });
+    if (!getOwnedCollection.get(id, user)) return res.status(404).json({ error: 'Collection not found' });
     if (!getModelById.get(modelId)) return res.status(404).json({ error: 'Model not found' });
     insertCollectionModel.run(id, modelId, new Date().toISOString());
     res.json({ added: true });
   });
 
   router.delete('/api/collections/:id/models/:modelId', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
     const id = parseInt(req.params.id, 10);
     const modelId = parseInt(req.params.modelId, 10);
     if (isNaN(id) || isNaN(modelId)) return res.status(400).json({ error: 'Invalid id' });
+    if (!getOwnedCollection.get(id, user)) return res.status(404).json({ error: 'Collection not found' });
     deleteCollectionModel.run(id, modelId);
     res.json({ added: false });
   });
@@ -349,23 +384,26 @@ export function createRoutes(db, dataDir) {
   // ── Sidebar nav counts ──
   const countAll = db.prepare('SELECT COUNT(*) n FROM models');
   const countRecent = db.prepare("SELECT COUNT(*) n FROM models WHERE date >= date('now','-30 day')");
-  const countFavorites = db.prepare('SELECT COUNT(*) n FROM favorites');
+  const countFavorites = db.prepare('SELECT COUNT(*) n FROM favorites WHERE user_id = ?');
   const countMissing = db.prepare("SELECT COUNT(*) n FROM models WHERE lower(files) NOT LIKE '%.stl%'");
 
   router.get('/api/counts', (req, res) => {
+    const user = userId(req);
     res.json({
       all: countAll.get().n,
       recent: countRecent.get().n,
-      favorites: countFavorites.get().n,
+      favorites: user ? countFavorites.get(user).n : 0,
       missing: countMissing.get().n,
     });
   });
 
-  // Which collections contain this model (for the detail page)
+  // Which of the requesting user's collections contain this model (for the detail page)
   router.get('/api/models/:id/collections', (req, res) => {
+    const user = userId(req);
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
-    res.json({ ids: listCollectionsForModel.all(id).map(r => r.collection_id) });
+    if (!user) return res.json({ ids: [] });
+    res.json({ ids: listCollectionsForModel.all(id, user).map(r => r.collection_id) });
   });
 
   return router;

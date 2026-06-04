@@ -6,7 +6,15 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': 'http://localhost:3001'
-    }
+      '/api': {
+        target: 'http://localhost:3001',
+        // Dev stand-in for the auth proxy (TinyAuth): inject the identity
+        // headers the API trusts. In production the proxy sets these.
+        headers: {
+          'Remote-User': 'tbird',
+          'Remote-Name': 'Taylor',
+        },
+      },
+    },
   }
 });

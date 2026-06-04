@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import Database from 'better-sqlite3';
 import { initDb } from './db.js';
 
 describe('database', () => {
@@ -71,6 +72,13 @@ describe('database', () => {
     assert.equal(cm.name, 'collection_models');
   });
 
+  it('favorites and collections are scoped by user', () => {
+    const favCols = db.prepare('PRAGMA table_info(favorites)').all().map(c => c.name);
+    assert.ok(favCols.includes('user_id'));
+    const collCols = db.prepare('PRAGMA table_info(collections)').all().map(c => c.name);
+    assert.ok(collCols.includes('owner'));
+  });
+
   it('cascades favorites and collection_models when a model is deleted', () => {
     db.prepare(`INSERT INTO models (folder_path, title, creator, date, content, files, preview_filename, indexed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
@@ -78,10 +86,10 @@ describe('database', () => {
       '2025-02-02', '', '[]', null, new Date().toISOString()
     );
     const { id } = db.prepare("SELECT id FROM models WHERE folder_path = 'TestCreator/2025-02-02-cascade'").get();
-    db.prepare('INSERT INTO favorites (model_id, created_at) VALUES (?, ?)').run(id, new Date().toISOString());
+    db.prepare('INSERT INTO favorites (user_id, model_id, created_at) VALUES (?, ?, ?)').run('alice', id, new Date().toISOString());
     const { lastInsertRowid: collId } = db.prepare(
-      'INSERT INTO collections (name, hue, created_at) VALUES (?, ?, ?)'
-    ).run('Test Coll', 28, new Date().toISOString());
+      'INSERT INTO collections (owner, name, hue, created_at) VALUES (?, ?, ?, ?)'
+    ).run('alice', 'Test Coll', 28, new Date().toISOString());
     db.prepare('INSERT INTO collection_models (collection_id, model_id, added_at) VALUES (?, ?, ?)')
       .run(collId, id, new Date().toISOString());
 
@@ -90,5 +98,22 @@ describe('database', () => {
     assert.equal(db.prepare('SELECT COUNT(*) n FROM favorites WHERE model_id = ?').get(id).n, 0);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM collection_models WHERE model_id = ?').get(id).n, 0);
     db.prepare('DELETE FROM collections WHERE id = ?').run(collId);
+  });
+
+  it('upgrades pre-multi-user favorites/collections tables', () => {
+    const p = join(tmpDir, 'migrate.db');
+    const raw = new Database(p);
+    raw.exec(`
+      CREATE TABLE favorites (model_id INTEGER PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE collections (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, hue INTEGER NOT NULL DEFAULT 28, created_at TEXT NOT NULL);
+      CREATE TABLE collection_models (collection_id INTEGER NOT NULL, model_id INTEGER NOT NULL, added_at TEXT NOT NULL, PRIMARY KEY (collection_id, model_id));
+    `);
+    raw.close();
+    const db2 = initDb(p);
+    const favCols = db2.prepare('PRAGMA table_info(favorites)').all().map(c => c.name);
+    assert.ok(favCols.includes('user_id'));
+    const collCols = db2.prepare('PRAGMA table_info(collections)').all().map(c => c.name);
+    assert.ok(collCols.includes('owner'));
+    db2.close();
   });
 });

@@ -56,7 +56,9 @@ export default function ModelDetailPage() {
   const toggleFavorite = () => {
     const on = !favorited;
     setFavorited(on);
-    setFavorite(Number(id), on);
+    setFavorite(Number(id), on).then((r) => {
+      if (r?.error) setFavorited(!on); // write rejected — revert
+    });
   };
 
   const toggleCollection = (collectionId) => {
@@ -64,7 +66,15 @@ export default function ModelDetailPage() {
       const next = new Set(prev);
       const on = !next.has(collectionId);
       if (on) next.add(collectionId); else next.delete(collectionId);
-      setModelInCollection(collectionId, Number(id), on);
+      setModelInCollection(collectionId, Number(id), on).then((r) => {
+        if (r?.error) {
+          setMemberIds((cur) => {
+            const reverted = new Set(cur);
+            if (on) reverted.delete(collectionId); else reverted.add(collectionId);
+            return reverted;
+          });
+        }
+      });
       return next;
     });
   };
@@ -72,6 +82,7 @@ export default function ModelDetailPage() {
   const handleCreateCollection = async (name, hue) => {
     setShowNewCollection(false);
     const created = await createCollection(name, hue);
+    if (created?.error || !created?.id) return;
     setCollections((prev) => [...prev, created]);
     toggleCollection(created.id);
   };

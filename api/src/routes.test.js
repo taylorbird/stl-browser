@@ -9,11 +9,11 @@ import { initDb } from './db.js';
 import { reindex } from './indexer.js';
 import { createRoutes } from './routes.js';
 
-function request(app, path) {
+function request(app, path, headers = {}) {
   return new Promise((resolve) => {
     const server = app.listen(0, () => {
       const port = server.address().port;
-      fetch(`http://localhost:${port}${path}`)
+      fetch(`http://localhost:${port}${path}`, { headers })
         .then(res => res.json().then(body => ({ status: res.status, body })))
         .then(result => { server.close(); resolve(result); })
         .catch(err => { server.close(); resolve({ status: 500, body: { error: err.message } }); });
@@ -21,13 +21,13 @@ function request(app, path) {
   });
 }
 
-function send(app, path, method, body) {
+function send(app, path, method, body, headers = {}) {
   return new Promise((resolve) => {
     const server = app.listen(0, () => {
       const port = server.address().port;
       fetch(`http://localhost:${port}${path}`, {
         method,
-        headers: body ? { 'Content-Type': 'application/json' } : {},
+        headers: body ? { 'Content-Type': 'application/json', ...headers } : headers,
         body: body ? JSON.stringify(body) : undefined,
       })
         .then(res => res.json().then(b => ({ status: res.status, body: b })))
@@ -36,6 +36,10 @@ function send(app, path, method, body) {
     });
   });
 }
+
+// Proxy-auth identities (TinyAuth-style headers)
+const ALICE = { 'remote-user': 'alice' };
+const BOB = { 'remote-user': 'bob' };
 
 describe('API routes', () => {
   let tmpDir, dataDir, db, app;
@@ -138,39 +142,57 @@ describe('API routes', () => {
 
   describe('favorites', () => {
     it('starts empty', async () => {
+      const { status, body } = await request(app, '/api/favorites', ALICE);
+      assert.equal(status, 200);
+      assert.deepEqual(body.ids, []);
+    });
+
+    it('GET without auth returns empty list', async () => {
       const { status, body } = await request(app, '/api/favorites');
       assert.equal(status, 200);
       assert.deepEqual(body.ids, []);
     });
 
-    it('PUT adds a favorite', async () => {
+    it('PUT without auth is rejected', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      const { status } = await send(app, `/api/favorites/${list.models[0].id}`, 'PUT');
+      assert.equal(status, 401);
+    });
+
+    it('PUT adds a favorite for the requesting user only', async () => {
       const { body: list } = await request(app, '/api/models?sort=title');
       const id = list.models[0].id;
-      const { status } = await send(app, `/api/favorites/${id}`, 'PUT');
+      const { status } = await send(app, `/api/favorites/${id}`, 'PUT', null, ALICE);
       assert.equal(status, 200);
-      const { body } = await request(app, '/api/favorites');
-      assert.deepEqual(body.ids, [id]);
+      const { body: aliceFavs } = await request(app, '/api/favorites', ALICE);
+      assert.deepEqual(aliceFavs.ids, [id]);
+      const { body: bobFavs } = await request(app, '/api/favorites', BOB);
+      assert.deepEqual(bobFavs.ids, []);
     });
 
     it('PUT is idempotent', async () => {
       const { body: list } = await request(app, '/api/models?sort=title');
       const id = list.models[0].id;
-      await send(app, `/api/favorites/${id}`, 'PUT');
-      const { body } = await request(app, '/api/favorites');
+      await send(app, `/api/favorites/${id}`, 'PUT', null, ALICE);
+      const { body } = await request(app, '/api/favorites', ALICE);
       assert.equal(body.ids.length, 1);
     });
 
     it('PUT 404s for unknown model', async () => {
-      const { status } = await send(app, '/api/favorites/999999', 'PUT');
+      const { status } = await send(app, '/api/favorites/999999', 'PUT', null, ALICE);
       assert.equal(status, 404);
     });
 
-    it('DELETE removes a favorite', async () => {
+    it("DELETE removes only the requesting user's favorite", async () => {
       const { body: list } = await request(app, '/api/models?sort=title');
       const id = list.models[0].id;
-      await send(app, `/api/favorites/${id}`, 'DELETE');
-      const { body } = await request(app, '/api/favorites');
-      assert.deepEqual(body.ids, []);
+      await send(app, `/api/favorites/${id}`, 'PUT', null, BOB);
+      await send(app, `/api/favorites/${id}`, 'DELETE', null, ALICE);
+      const { body: aliceFavs } = await request(app, '/api/favorites', ALICE);
+      assert.deepEqual(aliceFavs.ids, []);
+      const { body: bobFavs } = await request(app, '/api/favorites', BOB);
+      assert.deepEqual(bobFavs.ids, [id]);
+      await send(app, `/api/favorites/${id}`, 'DELETE', null, BOB);
     });
   });
 
@@ -178,51 +200,71 @@ describe('API routes', () => {
     let collId, modelId;
 
     it('starts empty', async () => {
-      const { status, body } = await request(app, '/api/collections');
+      const { status, body } = await request(app, '/api/collections', ALICE);
       assert.equal(status, 200);
       assert.deepEqual(body, []);
     });
 
-    it('POST creates a collection', async () => {
-      const { status, body } = await send(app, '/api/collections', 'POST', { name: 'To print', hue: 28 });
+    it('POST without auth is rejected', async () => {
+      const { status } = await send(app, '/api/collections', 'POST', { name: 'Nope' });
+      assert.equal(status, 401);
+    });
+
+    it('POST creates a collection visible only to its owner', async () => {
+      const { status, body } = await send(app, '/api/collections', 'POST', { name: 'To print', hue: 28 }, ALICE);
       assert.equal(status, 200);
       assert.equal(body.name, 'To print');
       assert.equal(body.hue, 28);
       assert.ok(body.id);
       collId = body.id;
+      const { body: bobColls } = await request(app, '/api/collections', BOB);
+      assert.deepEqual(bobColls, []);
     });
 
     it('POST rejects empty name', async () => {
-      const { status } = await send(app, '/api/collections', 'POST', { name: '  ' });
+      const { status } = await send(app, '/api/collections', 'POST', { name: '  ' }, ALICE);
       assert.equal(status, 400);
     });
 
     it('PUT adds a model to a collection', async () => {
       const { body: list } = await request(app, '/api/models?sort=title');
       modelId = list.models[0].id;
-      const { status } = await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT');
+      const { status } = await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT', null, ALICE);
       assert.equal(status, 200);
-      const { body } = await request(app, '/api/collections');
+      const { body } = await request(app, '/api/collections', ALICE);
       assert.equal(body[0].count, 1);
     });
 
-    it('GET /api/models/:id/collections lists memberships', async () => {
-      const { status, body } = await request(app, `/api/models/${modelId}/collections`);
+    it("another user cannot modify someone else's collection", async () => {
+      const { status } = await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT', null, BOB);
+      assert.equal(status, 404);
+    });
+
+    it('GET /api/models/:id/collections lists memberships for the requesting user', async () => {
+      const { status, body } = await request(app, `/api/models/${modelId}/collections`, ALICE);
       assert.equal(status, 200);
       assert.deepEqual(body.ids, [collId]);
+      const { body: bobView } = await request(app, `/api/models/${modelId}/collections`, BOB);
+      assert.deepEqual(bobView.ids, []);
     });
 
     it('DELETE removes a model from a collection', async () => {
-      await send(app, `/api/collections/${collId}/models/${modelId}`, 'DELETE');
-      const { body } = await request(app, '/api/collections');
+      await send(app, `/api/collections/${collId}/models/${modelId}`, 'DELETE', null, ALICE);
+      const { body } = await request(app, '/api/collections', ALICE);
       assert.equal(body[0].count, 0);
+    });
+
+    it("another user cannot delete someone else's collection", async () => {
+      await send(app, `/api/collections/${collId}`, 'DELETE', null, BOB);
+      const { body } = await request(app, '/api/collections', ALICE);
+      assert.equal(body.length, 1);
     });
 
     it('DELETE removes a collection and cascades membership rows', async () => {
       // Re-add membership so the cascade has something to clear
-      await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT');
-      await send(app, `/api/collections/${collId}`, 'DELETE');
-      const { body } = await request(app, '/api/collections');
+      await send(app, `/api/collections/${collId}/models/${modelId}`, 'PUT', null, ALICE);
+      await send(app, `/api/collections/${collId}`, 'DELETE', null, ALICE);
+      const { body } = await request(app, '/api/collections', ALICE);
       assert.deepEqual(body, []);
       const orphans = db.prepare('SELECT COUNT(*) n FROM collection_models WHERE collection_id = ?').get(collId);
       assert.equal(orphans.n, 0);
@@ -248,13 +290,15 @@ describe('API routes', () => {
       if (favId) db.prepare('DELETE FROM favorites WHERE model_id = ?').run(favId);
     });
 
-    it('favorites=1 returns only favorited models', async () => {
+    it("favorites=1 returns only the requesting user's favorites", async () => {
       const { body: list } = await request(app, '/api/models?sort=title');
       favId = list.models[0].id;
-      await send(app, `/api/favorites/${favId}`, 'PUT');
-      const { body } = await request(app, '/api/models?favorites=1');
+      await send(app, `/api/favorites/${favId}`, 'PUT', null, ALICE);
+      const { body } = await request(app, '/api/models?favorites=1', ALICE);
       assert.equal(body.total, 1);
       assert.equal(body.models[0].id, favId);
+      const { body: bobView } = await request(app, '/api/models?favorites=1', BOB);
+      assert.equal(bobView.total, 0);
     });
 
     it('missing=1 returns models with no .stl files', async () => {
@@ -269,24 +313,37 @@ describe('API routes', () => {
       assert.equal(body.models[0].id, extraId);
     });
 
-    it('collection=<id> returns that collection\'s models', async () => {
-      const { body: coll } = await send(app, '/api/collections', 'POST', { name: 'Filter Test', hue: 150 });
-      await send(app, `/api/collections/${coll.id}/models/${extraId}`, 'PUT');
-      const { body } = await request(app, `/api/models?collection=${coll.id}`);
+    it('collection=<id> returns that collection\'s models for its owner only', async () => {
+      const { body: coll } = await send(app, '/api/collections', 'POST', { name: 'Filter Test', hue: 150 }, ALICE);
+      await send(app, `/api/collections/${coll.id}/models/${extraId}`, 'PUT', null, ALICE);
+      const { body } = await request(app, `/api/models?collection=${coll.id}`, ALICE);
       assert.equal(body.total, 1);
       assert.equal(body.models[0].id, extraId);
-      await send(app, `/api/collections/${coll.id}`, 'DELETE');
+      const { body: bobView } = await request(app, `/api/models?collection=${coll.id}`, BOB);
+      assert.equal(bobView.total, 0);
+      await send(app, `/api/collections/${coll.id}`, 'DELETE', null, ALICE);
     });
   });
 
   describe('counts', () => {
     it('GET /api/counts returns nav counts', async () => {
-      const { status, body } = await request(app, '/api/counts');
+      const { status, body } = await request(app, '/api/counts', ALICE);
       assert.equal(status, 200);
       assert.equal(body.all, 2); // the two base fixtures
       assert.equal(typeof body.recent, 'number');
       assert.equal(typeof body.favorites, 'number');
       assert.equal(typeof body.missing, 'number');
+    });
+
+    it('favorites count is scoped to the requesting user', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      const id = list.models[0].id;
+      await send(app, `/api/favorites/${id}`, 'PUT', null, ALICE);
+      const { body: alice } = await request(app, '/api/counts', ALICE);
+      const { body: bob } = await request(app, '/api/counts', BOB);
+      assert.equal(alice.favorites, 1);
+      assert.equal(bob.favorites, 0);
+      await send(app, `/api/favorites/${id}`, 'DELETE', null, ALICE);
     });
 
     it('GET /api/creators includes model counts', async () => {

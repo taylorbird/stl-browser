@@ -50,14 +50,29 @@ export default function App() {
       const next = new Set(prev);
       const on = !next.has(id);
       if (on) next.add(id); else next.delete(id);
-      setFavorite(id, on).then(() => fetchCounts().then(setCounts));
+      setFavorite(id, on).then((r) => {
+        if (r?.error) {
+          // Write rejected (e.g. no auth identity) — revert the optimistic update
+          setFavorites((cur) => {
+            const reverted = new Set(cur);
+            if (on) reverted.delete(id); else reverted.add(id);
+            return reverted;
+          });
+        } else {
+          fetchCounts().then(setCounts);
+        }
+      });
       return next;
     });
   }, []);
 
   const handleCreateCollection = useCallback(async (name, hue) => {
-    await createCollection(name, hue);
+    const created = await createCollection(name, hue);
     setShowNewCollection(false);
+    if (created?.error) {
+      alert(`Could not create collection: ${created.error}`);
+      return;
+    }
     fetchCollections().then(setCollections);
   }, []);
 
