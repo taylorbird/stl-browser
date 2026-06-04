@@ -229,5 +229,29 @@ export function createRoutes(db, dataDir) {
     res.json({ deleted });
   });
 
+  // ── Favorites ──
+  const listFavorites = db.prepare('SELECT model_id FROM favorites ORDER BY created_at DESC');
+  const insertFavorite = db.prepare('INSERT OR IGNORE INTO favorites (model_id, created_at) VALUES (?, ?)');
+  const deleteFavorite = db.prepare('DELETE FROM favorites WHERE model_id = ?');
+
+  router.get('/api/favorites', (req, res) => {
+    res.json({ ids: listFavorites.all().map(r => r.model_id) });
+  });
+
+  router.put('/api/favorites/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    if (!getModelById.get(id)) return res.status(404).json({ error: 'Model not found' });
+    insertFavorite.run(id, new Date().toISOString());
+    res.json({ favorited: true });
+  });
+
+  router.delete('/api/favorites/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    deleteFavorite.run(id);
+    res.json({ favorited: false });
+  });
+
   return router;
 }

@@ -21,6 +21,22 @@ function request(app, path) {
   });
 }
 
+function send(app, path, method, body) {
+  return new Promise((resolve) => {
+    const server = app.listen(0, () => {
+      const port = server.address().port;
+      fetch(`http://localhost:${port}${path}`, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      })
+        .then(res => res.json().then(b => ({ status: res.status, body: b })))
+        .then(result => { server.close(); resolve(result); })
+        .catch(err => { server.close(); resolve({ status: 500, body: { error: err.message } }); });
+    });
+  });
+}
+
 describe('API routes', () => {
   let tmpDir, dataDir, db, app;
 
@@ -97,5 +113,43 @@ describe('API routes', () => {
     const names = body.map(c => c.name).sort();
     assert.deepEqual(names, ['CreatorA', 'CreatorB']);
     assert.ok(body.every(c => typeof c.hasLogo === 'boolean'));
+  });
+
+  describe('favorites', () => {
+    it('starts empty', async () => {
+      const { status, body } = await request(app, '/api/favorites');
+      assert.equal(status, 200);
+      assert.deepEqual(body.ids, []);
+    });
+
+    it('PUT adds a favorite', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      const id = list.models[0].id;
+      const { status } = await send(app, `/api/favorites/${id}`, 'PUT');
+      assert.equal(status, 200);
+      const { body } = await request(app, '/api/favorites');
+      assert.deepEqual(body.ids, [id]);
+    });
+
+    it('PUT is idempotent', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      const id = list.models[0].id;
+      await send(app, `/api/favorites/${id}`, 'PUT');
+      const { body } = await request(app, '/api/favorites');
+      assert.equal(body.ids.length, 1);
+    });
+
+    it('PUT 404s for unknown model', async () => {
+      const { status } = await send(app, '/api/favorites/999999', 'PUT');
+      assert.equal(status, 404);
+    });
+
+    it('DELETE removes a favorite', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      const id = list.models[0].id;
+      await send(app, `/api/favorites/${id}`, 'DELETE');
+      const { body } = await request(app, '/api/favorites');
+      assert.deepEqual(body.ids, []);
+    });
   });
 });
