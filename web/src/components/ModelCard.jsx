@@ -3,6 +3,8 @@ import { previewUrl } from '../api';
 import LoadingImage from './LoadingImage';
 
 export default function ModelCard({ model }) {
+  const stlCount = model.files.filter(f => f.endsWith('.stl')).length;
+
   return (
     <Link
       to={`/models/${model.id}`}
@@ -26,12 +28,13 @@ export default function ModelCard({ model }) {
         <h3 className="font-heading font-semibold text-[0.95rem] leading-tight truncate transition-colors duration-300 group-hover:text-amber-200">
           {model.title}
         </h3>
-        <p className="text-xs text-gray-400 mt-1">{model.creator}</p>
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-gray-500">{model.date}</span>
-          <span className="text-xs text-gray-500">
-            {model.files.filter(f => f.endsWith('.stl')).length} STLs
-          </span>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-xs text-gray-400">{model.creator}</p>
+          {stlCount > 0 && (
+            <span className="bg-gray-800 text-amber-300 text-[0.65rem] font-semibold px-1.5 py-0.5 rounded-md">
+              {stlCount} STL{stlCount !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       </div>
     </Link>

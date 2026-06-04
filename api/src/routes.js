@@ -45,14 +45,25 @@ export function createRoutes(db, dataDir) {
     const offset = (page - 1) * limit;
     const creator = req.query.creator || null;
     const q = req.query.q || null;
-    const sort = req.query.sort || 'date';
+    const sort = req.query.sort || 'random';
+    const seed = parseInt(req.query.seed, 10) || 0;
 
-    const sortClauses = {
-      date: 'date DESC',
-      title: 'title ASC',
-      creator: 'creator ASC',
-    };
-    const orderBy = sortClauses[sort] || sortClauses.date;
+    let orderBy;
+    if (sort === 'random') {
+      // Stable seeded shuffle using substr of hex(randomblob()) seeded via id+seed
+      // We use a deterministic hash: (id*A + seed*B) mod P, with small-enough constants
+      const a = 1103515245;
+      const b = ((seed % 32749) || 1) * 12345;
+      const p = 2147483647;
+      orderBy = `((m.id * ${a} + ${b}) % ${p})`;
+    } else {
+      const sortClauses = {
+        date: 'date DESC',
+        title: 'title ASC',
+        creator: 'creator ASC',
+      };
+      orderBy = sortClauses[sort] || sortClauses.date;
+    }
 
     const conditions = [];
     const params = [];
