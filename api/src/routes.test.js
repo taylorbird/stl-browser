@@ -93,6 +93,17 @@ describe('API routes', () => {
     assert.equal(body.models[0].title, 'Alpha Model');
   });
 
+  it('GET /api/models?q=PL matches prefixes (live search)', async () => {
+    const { body } = await request(app, '/api/models?q=PL');
+    assert.equal(body.total, 1);
+    assert.equal(body.models[0].title, 'Alpha Model');
+  });
+
+  it('GET /api/models?q with quotes/operators does not 500', async () => {
+    const { status } = await request(app, `/api/models?q=${encodeURIComponent('kraken\'s "AND (')}`);
+    assert.equal(status, 200);
+  });
+
   it('GET /api/models?page=1&limit=1 paginates', async () => {
     const { body } = await request(app, '/api/models?page=1&limit=1');
     assert.equal(body.models.length, 1);

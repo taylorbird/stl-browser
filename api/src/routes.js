@@ -38,6 +38,14 @@ export function createRoutes(db, dataDir) {
     SELECT rowid FROM models_fts WHERE models_fts MATCH ?
   `);
 
+  // Turn raw user input into a safe prefix-matching FTS5 query:
+  // each token is quoted (neutralizing operators/quotes) and starred for prefix match.
+  function ftsQuery(q) {
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return null;
+    return tokens.map(t => `"${t.replace(/"/g, '""')}"*`).join(' ');
+  }
+
   // GET /api/models — List/search models with pagination
   router.get('/api/models', (req, res) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -68,8 +76,8 @@ export function createRoutes(db, dataDir) {
     const conditions = [];
     const params = [];
 
-    if (q) {
-      const ftsResults = ftsSearch.all(q);
+    if (q && ftsQuery(q)) {
+      const ftsResults = ftsSearch.all(ftsQuery(q));
       const rowids = ftsResults.map(r => r.rowid);
       if (rowids.length === 0) {
         return res.json({ models: [], total: 0, page, limit });

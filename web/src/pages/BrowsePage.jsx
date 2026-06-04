@@ -53,6 +53,7 @@ export default function BrowsePage({ view, sort, onSortChange, q, favorites, onT
   const sentinelRef = useRef(null);
   const scrollRef = useRef(null);
   const loadingRef = useRef(false);
+  const reqIdRef = useRef(0);
 
   const showFeatured = view.type === 'all' && !q;
 
@@ -63,7 +64,9 @@ export default function BrowsePage({ view, sort, onSortChange, q, favorites, onT
   }, [showFeatured, featSeed]);
 
   const loadPage = useCallback(async (pageNum, append) => {
-    if (loadingRef.current) return;
+    // Newer calls supersede in-flight ones (e.g. fast typing in search) —
+    // stale responses are discarded rather than new requests dropped.
+    const reqId = ++reqIdRef.current;
     loadingRef.current = true;
     setLoading(true);
 
@@ -76,6 +79,7 @@ export default function BrowsePage({ view, sort, onSortChange, q, favorites, onT
       ...(sort === 'random' ? { seed } : {}),
     });
 
+    if (reqId !== reqIdRef.current) return;
     setTotal(data.total);
     setModels((prev) => (append ? [...prev, ...data.models] : data.models));
     setHasMore(pageNum * LIMIT < data.total);
