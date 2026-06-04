@@ -1,4 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
+
+// Debounce a fast-changing value (e.g. search keystrokes) before it triggers fetches.
+function useDebouncedValue(value, ms) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
 import {
   triggerReindex, deleteModels,
   fetchFavorites, setFavorite,
@@ -14,6 +24,7 @@ export default function App() {
   const [view, setView] = useState({ type: 'all' });
   const [sort, setSort] = useState('random');
   const [q, setQ] = useState('');
+  const debouncedQ = useDebouncedValue(q, 250);
   const [favorites, setFavorites] = useState(() => new Set());
   const [collections, setCollections] = useState([]);
   const [counts, setCounts] = useState(null);
@@ -54,7 +65,7 @@ export default function App() {
     setReindexing(true);
     try {
       const stats = await triggerReindex();
-      if (stats.stale.length > 0) setStaleModels(stats.stale);
+      if (stats.stale?.length > 0) setStaleModels(stats.stale);
       refreshSidebar();
       setRefreshKey((k) => k + 1);
     } catch {
@@ -92,7 +103,7 @@ export default function App() {
           view={view}
           sort={sort}
           onSortChange={setSort}
-          q={q}
+          q={debouncedQ}
           favorites={favorites}
           onToggleFavorite={handleToggleFavorite}
           reindexing={reindexing}

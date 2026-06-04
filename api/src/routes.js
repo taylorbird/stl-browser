@@ -76,8 +76,9 @@ export function createRoutes(db, dataDir) {
     const conditions = [];
     const params = [];
 
-    if (q && ftsQuery(q)) {
-      const ftsResults = ftsSearch.all(ftsQuery(q));
+    const fts = q ? ftsQuery(q) : null;
+    if (fts) {
+      const ftsResults = ftsSearch.all(fts);
       const rowids = ftsResults.map(r => r.rowid);
       if (rowids.length === 0) {
         return res.json({ models: [], total: 0, page, limit });
