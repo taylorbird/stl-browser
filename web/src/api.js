@@ -90,3 +90,17 @@ export async function fetchCounts() {
   const res = await fetch(`${BASE}/counts`);
   return res.json();
 }
+
+export async function fetchWeights() {
+  const res = await fetch(`${BASE}/settings/weights`);
+  return res.json();
+}
+
+export async function setWeight(creator, weight) {
+  const res = await fetch(`${BASE}/settings/weights`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creator, weight }),
+  });
+  return res.json();
+}

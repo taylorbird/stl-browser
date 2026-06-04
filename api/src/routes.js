@@ -57,13 +57,26 @@ export function createRoutes(db, dataDir) {
     const seed = parseInt(req.query.seed, 10) || 0;
 
     let orderBy;
+    let joins = '';
+    const joinParams = [];
     if (sort === 'random') {
-      // Stable seeded shuffle using substr of hex(randomblob()) seeded via id+seed
-      // We use a deterministic hash: (id*A + seed*B) mod P, with small-enough constants
+      // Weighted, creator-balanced shuffle (Efraimidis–Spirakis sampling, log form).
+      // u = deterministic pseudo-random in (0,1] per (model, seed):
+      //   u = (((id*a + b) % p) + 1) / (p + 1)
+      // key = ln(u) * creator_count / user_weight, ordered DESC.
+      // Dividing by creator_count gives every creator ~equal airtime regardless of
+      // library share; the per-user weight multiplies that share (1 = default,
+      // 0 clamps to 0.02 so "hidden" creators sink to the end instead of vanishing).
       const a = 1103515245;
       const b = ((seed % 32749) || 1) * 12345;
       const p = 2147483647;
-      orderBy = `((m.id * ${a} + ${b}) % ${p})`;
+      const user = userId(req);
+      joins = `
+        JOIN (SELECT creator, COUNT(*) n FROM models GROUP BY creator) cc ON cc.creator = m.creator
+        LEFT JOIN user_creator_weights ucw ON ucw.creator = m.creator AND ucw.user_id = ?
+      `;
+      joinParams.push(user || '');
+      orderBy = `(ln((((m.id * ${a} + ${b}) % ${p}) + 1.0) / ${p + 1}.0) * cc.n / MAX(COALESCE(ucw.weight, 1), 0.02)) DESC`;
     } else {
       const sortClauses = {
         date: 'date DESC',
@@ -124,8 +137,8 @@ export function createRoutes(db, dataDir) {
     const total = countRow.total;
 
     const models = db.prepare(
-      `SELECT m.* FROM models m ${whereClause} ORDER BY ${orderBy} LIMIT ? OFFSET ?`
-    ).all(...params, limit, offset);
+      `SELECT m.* FROM models m ${joins} ${whereClause} ORDER BY ${orderBy} LIMIT ? OFFSET ?`
+    ).all(...joinParams, ...params, limit, offset);
 
     const result = models.map(model => ({
       id: model.id,
@@ -379,6 +392,37 @@ export function createRoutes(db, dataDir) {
     if (!getOwnedCollection.get(id, user)) return res.status(404).json({ error: 'Collection not found' });
     deleteCollectionModel.run(id, modelId);
     res.json({ added: false });
+  });
+
+  // ── Creator weights (per-user, drives Featured/Shuffle balance) ──
+  const listWeights = db.prepare('SELECT creator, weight FROM user_creator_weights WHERE user_id = ?');
+  const upsertWeight = db.prepare(`
+    INSERT INTO user_creator_weights (user_id, creator, weight) VALUES (?, ?, ?)
+    ON CONFLICT (user_id, creator) DO UPDATE SET weight = excluded.weight
+  `);
+  const deleteWeight = db.prepare('DELETE FROM user_creator_weights WHERE user_id = ? AND creator = ?');
+
+  router.get('/api/settings/weights', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.json({ weights: {} });
+    const weights = Object.fromEntries(listWeights.all(user).map(r => [r.creator, r.weight]));
+    res.json({ weights });
+  });
+
+  router.put('/api/settings/weights', (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const creator = (req.body?.creator || '').trim();
+    const weight = req.body?.weight;
+    if (!creator || typeof weight !== 'number' || !isFinite(weight) || weight < 0 || weight > 10) {
+      return res.status(400).json({ error: 'creator and weight (0–10) required' });
+    }
+    if (weight === 1) {
+      deleteWeight.run(user, creator); // 1 is the default — no row needed
+    } else {
+      upsertWeight.run(user, creator, weight);
+    }
+    res.json({ creator, weight });
   });
 
   // ── Sidebar nav counts ──

@@ -72,6 +72,11 @@ describe('database', () => {
     assert.equal(cm.name, 'collection_models');
   });
 
+  it('creates user_creator_weights table', () => {
+    const cols = db.prepare('PRAGMA table_info(user_creator_weights)').all().map(c => c.name);
+    assert.deepEqual(cols, ['user_id', 'creator', 'weight']);
+  });
+
   it('favorites and collections are scoped by user', () => {
     const favCols = db.prepare('PRAGMA table_info(favorites)').all().map(c => c.name);
     assert.ok(favCols.includes('user_id'));

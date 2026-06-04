@@ -18,6 +18,7 @@ import {
 import BrowsePage from './pages/BrowsePage';
 import Sidebar from './components/Sidebar';
 import CollectionDialog from './components/CollectionDialog';
+import SettingsDialog from './components/SettingsDialog';
 import StaleModelsDialog from './components/StaleModelsDialog';
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
   const [counts, setCounts] = useState(null);
   const [creators, setCreators] = useState([]);
   const [showNewCollection, setShowNewCollection] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [reindexing, setReindexing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [staleModels, setStaleModels] = useState(null);
@@ -111,6 +113,7 @@ export default function App() {
         q={q}
         onSearch={setQ}
         onNewCollection={() => setShowNewCollection(true)}
+        onOpenSettings={() => setShowSettings(true)}
       />
       <main className="flex h-screen min-w-0 flex-1 flex-col">
         <BrowsePage
@@ -129,6 +132,15 @@ export default function App() {
       </main>
       {showNewCollection && (
         <CollectionDialog onCreate={handleCreateCollection} onDismiss={() => setShowNewCollection(false)} />
+      )}
+      {showSettings && (
+        <SettingsDialog
+          creators={creators}
+          onDismiss={() => {
+            setShowSettings(false);
+            setRefreshKey((k) => k + 1); // re-roll Featured/Shuffle with new weights
+          }}
+        />
       )}
       {staleModels && (
         <StaleModelsDialog models={staleModels} onConfirm={handleDeleteStale} onDismiss={() => setStaleModels(null)} />

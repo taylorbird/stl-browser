@@ -59,6 +59,13 @@ export function initDb(path = DB_PATH) {
 
     CREATE INDEX IF NOT EXISTS idx_collections_owner ON collections(owner);
 
+    CREATE TABLE IF NOT EXISTS user_creator_weights (
+      user_id TEXT NOT NULL,
+      creator TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1,
+      PRIMARY KEY (user_id, creator)
+    );
+
     CREATE TABLE IF NOT EXISTS collection_models (
       collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
       model_id INTEGER NOT NULL REFERENCES models(id) ON DELETE CASCADE,

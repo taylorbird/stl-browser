@@ -35,7 +35,7 @@ const CREATORS_COLLAPSED = 6;
 
 export default function Sidebar({
   view, onViewChange, counts, collections, creators,
-  q, onSearch, onNewCollection,
+  q, onSearch, onNewCollection, onOpenSettings,
 }) {
   const [owner, setOwner] = useState(null);
   const [creatorsExpanded, setCreatorsExpanded] = useState(false);
@@ -166,7 +166,13 @@ export default function Sidebar({
           {ownerLabel[0].toUpperCase()}
         </span>
         <span className="truncate text-[13px] text-dim">{ownerLabel}</span>
-        <Icon name="sliders" className="ml-auto h-[17px] w-[17px] shrink-0 text-faint opacity-60" />
+        <button
+          onClick={onOpenSettings}
+          title="Settings"
+          className="ml-auto flex shrink-0 text-faint opacity-60 transition-opacity hover:text-ink hover:opacity-100"
+        >
+          <Icon name="sliders" className="h-[17px] w-[17px]" />
+        </button>
       </div>
     </aside>
   );

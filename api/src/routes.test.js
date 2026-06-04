@@ -80,8 +80,8 @@ describe('API routes', () => {
     assert.equal(body.models.length, 2);
   });
 
-  it('GET /api/models sorts by date desc by default', async () => {
-    const { body } = await request(app, '/api/models');
+  it('GET /api/models?sort=date sorts by date desc', async () => {
+    const { body } = await request(app, '/api/models?sort=date');
     assert.equal(body.models[0].title, 'Beta Model');
   });
 
@@ -350,6 +350,52 @@ describe('API routes', () => {
       const { body } = await request(app, '/api/creators');
       const a = body.find(c => c.name === 'CreatorA');
       assert.equal(a.count, 1);
+    });
+  });
+
+  describe('creator weights', () => {
+    it('GET returns empty weights for anonymous', async () => {
+      const { status, body } = await request(app, '/api/settings/weights');
+      assert.equal(status, 200);
+      assert.deepEqual(body.weights, {});
+    });
+
+    it('PUT without auth is rejected', async () => {
+      const { status } = await send(app, '/api/settings/weights', 'PUT', { creator: 'CreatorA', weight: 2 });
+      assert.equal(status, 401);
+    });
+
+    it('PUT stores a weight per user', async () => {
+      const { status } = await send(app, '/api/settings/weights', 'PUT', { creator: 'CreatorA', weight: 2 }, ALICE);
+      assert.equal(status, 200);
+      const { body: alice } = await request(app, '/api/settings/weights', ALICE);
+      assert.deepEqual(alice.weights, { CreatorA: 2 });
+      const { body: bob } = await request(app, '/api/settings/weights', BOB);
+      assert.deepEqual(bob.weights, {});
+    });
+
+    it('PUT weight 1 resets to default (row removed)', async () => {
+      await send(app, '/api/settings/weights', 'PUT', { creator: 'CreatorA', weight: 1 }, ALICE);
+      const { body } = await request(app, '/api/settings/weights', ALICE);
+      assert.deepEqual(body.weights, {});
+    });
+
+    it('PUT rejects invalid weight', async () => {
+      const { status } = await send(app, '/api/settings/weights', 'PUT', { creator: 'CreatorA', weight: 'lots' }, ALICE);
+      assert.equal(status, 400);
+    });
+
+    it('a near-zero weight pushes that creator to the end of shuffle', async () => {
+      await send(app, '/api/settings/weights', 'PUT', { creator: 'CreatorA', weight: 0 }, ALICE);
+      let creatorALast = 0;
+      const seeds = 30;
+      for (let seed = 1; seed <= seeds; seed++) {
+        const { body } = await request(app, `/api/models?sort=random&seed=${seed}`, ALICE);
+        if (body.models[body.models.length - 1].creator === 'CreatorA') creatorALast++;
+      }
+      // Hidden (0 → clamped 0.02) means CreatorA should sort last almost always
+      assert.ok(creatorALast >= seeds - 3, `CreatorA last in only ${creatorALast}/${seeds} seeds`);
+      await send(app, '/api/settings/weights', 'PUT', { creator: 'CreatorA', weight: 1 }, ALICE);
     });
   });
 });
