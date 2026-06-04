@@ -353,6 +353,28 @@ describe('API routes', () => {
     });
   });
 
+  describe('DEFAULT_USER single-user mode', () => {
+    before(() => { process.env.DEFAULT_USER = 'solo'; });
+    after(() => {
+      delete process.env.DEFAULT_USER;
+      db.prepare("DELETE FROM favorites WHERE user_id = 'solo'").run();
+    });
+
+    it('headerless writes act as the default user', async () => {
+      const { body: list } = await request(app, '/api/models?sort=title');
+      const id = list.models[0].id;
+      const { status } = await send(app, `/api/favorites/${id}`, 'PUT');
+      assert.equal(status, 200);
+      const { body } = await request(app, '/api/favorites');
+      assert.deepEqual(body.ids, [id]);
+    });
+
+    it('proxy headers still take precedence over DEFAULT_USER', async () => {
+      const { body } = await request(app, '/api/favorites', ALICE);
+      assert.deepEqual(body.ids, []);
+    });
+  });
+
   describe('creator weights', () => {
     it('GET returns empty weights for anonymous', async () => {
       const { status, body } = await request(app, '/api/settings/weights');

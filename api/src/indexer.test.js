@@ -63,6 +63,32 @@ describe('indexer', () => {
     assert.equal(stats.errors, 0);
   });
 
+  it('indexes folders without metadata.md, deriving metadata from the folder name', () => {
+    mkdirSync(join(dataDir, 'PlainCreator', '2026-02-14-dragon-bust'), { recursive: true });
+    writeFileSync(join(dataDir, 'PlainCreator', '2026-02-14-dragon-bust', 'dragon.stl'), 'fake-stl');
+    writeFileSync(join(dataDir, 'PlainCreator', '2026-02-14-dragon-bust', 'photo.jpg'), 'fake-jpg');
+    mkdirSync(join(dataDir, 'PlainCreator', 'phone_stand'), { recursive: true });
+    writeFileSync(join(dataDir, 'PlainCreator', 'phone_stand', 'stand.stl'), 'fake-stl');
+
+    const stats = reindex(db, dataDir);
+    assert.equal(stats.errors, 0);
+    assert.equal(stats.indexed, 4);
+
+    const dragon = db.prepare("SELECT * FROM models WHERE folder_path = 'PlainCreator/2026-02-14-dragon-bust'").get();
+    assert.equal(dragon.title, 'dragon bust');
+    assert.equal(dragon.creator, 'PlainCreator');
+    assert.equal(dragon.date, '2026-02-14');
+    assert.equal(dragon.preview_filename, 'photo.jpg');
+
+    const stand = db.prepare("SELECT * FROM models WHERE folder_path = 'PlainCreator/phone_stand'").get();
+    assert.equal(stand.title, 'phone stand');
+    assert.equal(stand.date, null);
+
+    rmSync(join(dataDir, 'PlainCreator'), { recursive: true });
+    reindex(db, dataDir); // restore baseline; stale rows reported, not auto-deleted
+    db.prepare("DELETE FROM models WHERE folder_path LIKE 'PlainCreator/%'").run();
+  });
+
   it('stores correct metadata', () => {
     const model = db.prepare('SELECT * FROM models WHERE title = ?').get('Cool Vase');
     assert.equal(model.creator, 'TestCreator');

@@ -5,6 +5,16 @@ import matter from 'gray-matter';
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 const DATA_DIR = '/data';
 
+// Derive metadata from a folder name like "2026-02-14-dragon-bust" or "phone_stand"
+// for libraries without metadata.md files.
+function parseFolderName(name) {
+  const m = name.match(/^(\d{4}-\d{2}-\d{2})[-_ ]*(.*)$/);
+  const date = m ? m[1] : null;
+  const rest = m ? m[2] : name;
+  const title = rest.replace(/[-_]+/g, ' ').trim() || name;
+  return { title, date };
+}
+
 export function reindex(db, dataDir = DATA_DIR) {
   const stats = { indexed: 0, errors: 0, stale: [] };
 
@@ -43,11 +53,17 @@ export function reindex(db, dataDir = DATA_DIR) {
 
       for (const modelDir of modelDirs) {
         const modelPath = join(creatorPath, modelDir.name);
-        const metadataPath = join(modelPath, 'metadata.md');
 
         try {
-          const raw = readFileSync(metadataPath, 'utf-8');
-          const { data: fm, content } = matter(raw);
+          // metadata.md is optional — without it, metadata derives from the folder name
+          let fm = {};
+          let content = '';
+          try {
+            const raw = readFileSync(join(modelPath, 'metadata.md'), 'utf-8');
+            ({ data: fm, content } = matter(raw));
+          } catch {
+            // no metadata.md — use folder-derived defaults below
+          }
 
           const allFiles = readdirSync(modelPath, { withFileTypes: true })
             .filter(d => d.isFile() && d.name !== 'metadata.md')
@@ -57,7 +73,8 @@ export function reindex(db, dataDir = DATA_DIR) {
 
           const folderPath = `${creatorDir.name}/${modelDir.name}`;
           seenPaths.add(folderPath);
-          const title = fm.title || modelDir.name;
+          const folderMeta = parseFolderName(modelDir.name);
+          const title = fm.title || folderMeta.title;
           const creator = fm.creator || creatorDir.name;
           const trimmedContent = content.trim();
           const existingRow = getModelId.get(folderPath);
@@ -72,7 +89,7 @@ export function reindex(db, dataDir = DATA_DIR) {
             folder_path: folderPath,
             title,
             creator,
-            date: fm.date ? (fm.date instanceof Date ? fm.date.toISOString().slice(0, 10) : String(fm.date).slice(0, 10)) : null,
+            date: fm.date ? (fm.date instanceof Date ? fm.date.toISOString().slice(0, 10) : String(fm.date).slice(0, 10)) : folderMeta.date,
             patreon_url: fm.patreon_url ?? null,
             post_id: fm.post_id ?? null,
             content: trimmedContent,

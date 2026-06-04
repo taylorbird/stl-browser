@@ -2,13 +2,16 @@ services:
   api:
     image: taylorlbird/stl-browser-api:latest
     restart: unless-stopped
-    ports:
-      - "3001:3001"
+    # No published port on purpose: the web container proxies /api internally.
+    # Exposing 3001 directly lets anyone spoof the Remote-User identity header.
     volumes:
       - /mnt/nas/projects/3dprint/models-new:/data:ro
       - /opt/docker_apps/stlfinder/config:/config
     environment:
       - NODE_ENV=production
+      # Single-user mode — uncomment if you do NOT run an auth proxy
+      # (favorites/collections/settings will belong to this one identity):
+      # - DEFAULT_USER=taylor
     ulimits:
       nofile:
         soft: 65536

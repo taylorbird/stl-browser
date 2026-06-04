@@ -289,8 +289,10 @@ export function createRoutes(db, dataDir) {
 
   // ── Identity (proxy-auth headers from TinyAuth/Authelia/etc.) ──
   // Writes require an identity; anonymous reads return empty user-scoped data.
+  // DEFAULT_USER enables single-user mode for deployments without an auth proxy:
+  // headerless requests act as that user instead of being anonymous.
   function userId(req) {
-    return req.headers['remote-user'] || req.headers['remote-email'] || null;
+    return req.headers['remote-user'] || req.headers['remote-email'] || process.env.DEFAULT_USER || null;
   }
 
   // ── Favorites (per-user) ──
