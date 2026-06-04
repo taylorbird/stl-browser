@@ -1,6 +1,6 @@
 services:
   api:
-    image: taylorlbird/stl-browser-api:latest
+    image: taylorlbird/curio-api:latest
     restart: unless-stopped
     # No published port on purpose: the web container proxies /api internally.
     # Exposing 3001 directly lets anyone spoof the Remote-User identity header.
@@ -18,7 +18,7 @@ services:
         hard: 65536
 
   web:
-    image: taylorlbird/stl-browser-web:latest
+    image: taylorlbird/curio-web:latest
     restart: unless-stopped
     ports:
       - "3000:80"

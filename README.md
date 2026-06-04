@@ -58,7 +58,7 @@ Models whose folders disappeared are reported and removed only after you confirm
 # docker-compose.yml
 services:
   api:
-    image: taylorlbird/stl-browser-api:latest
+    image: taylorlbird/curio-api:latest
     restart: unless-stopped
     volumes:
       - /path/to/your/models:/data:ro     # your library (read-only)
@@ -69,7 +69,7 @@ services:
       nofile: { soft: 65536, hard: 65536 }
 
   web:
-    image: taylorlbird/stl-browser-web:latest
+    image: taylorlbird/curio-web:latest
     restart: unless-stopped
     ports:
       - "3000:80"
