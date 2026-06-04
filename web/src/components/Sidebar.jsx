@@ -65,7 +65,7 @@ export default function Sidebar({
         <span className="relative h-7 w-7 shrink-0 rounded-lg bg-accent">
           <span className="absolute inset-[7px] rotate-45 rounded-[2px] border-[1.5px] border-accent-ink" />
         </span>
-        <span className="font-display text-[17px] font-bold tracking-[.15em]">MANIFOLD</span>
+        <span className="font-display text-[17px] font-bold tracking-[.15em]">CURIO</span>
       </div>
 
       {/* Search */}
