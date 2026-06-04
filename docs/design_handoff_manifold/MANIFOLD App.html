@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MANIFOLD — 3D print library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="manifold.css">
+</head>
+<body>
+<div id="app" class="app"></div>
+
+<script src="screen.js"></script>
+<script src="sidebars.js"></script>
+<script>
+  (function () {
+    const t = window.STL.themes.refinedDark.vars;
+    const vars = Object.entries(t).map(([k, v]) => '--' + k + ':' + v).join(';') + ';--shotInk:rgba(255,255,255,.62)';
+    const app = document.getElementById('app');
+    app.setAttribute('style', vars);
+    app.innerHTML = window.SIDEBARS.render('stdSection') + '<main class="app-main">' + window.STL.renderMain() + '</main>';
+
+    // Lightweight interactivity so the screen feels alive while we iterate.
+    const setActive = (group, el) => { group.forEach((n) => n.classList.remove(group._on)); el.classList.add(group._on); };
+    const bind = (selector, onClass) => {
+      const nodes = [...app.querySelectorAll(selector)];
+      nodes._on = onClass;
+      nodes.forEach((n) => n.addEventListener('click', () => setActive(nodes, n)));
+    };
+    bind('.app-bar .tab', 'tab--on');
+    bind('.tags2 .tag2', 'tag2--on');
+    bind('.sb-nav .ni', 'ni--on');
+  })();
+</script>
+</body>
+</html>
