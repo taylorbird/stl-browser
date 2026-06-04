@@ -49,3 +49,44 @@ export async function deleteModels(ids) {
   });
   return res.json();
 }
+
+export async function fetchFavorites() {
+  const res = await fetch(`${BASE}/favorites`);
+  return res.json();
+}
+
+export async function setFavorite(id, on) {
+  const res = await fetch(`${BASE}/favorites/${id}`, { method: on ? 'PUT' : 'DELETE' });
+  return res.json();
+}
+
+export async function fetchCollections() {
+  const res = await fetch(`${BASE}/collections`);
+  return res.json();
+}
+
+export async function createCollection(name, hue) {
+  const res = await fetch(`${BASE}/collections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, hue }),
+  });
+  return res.json();
+}
+
+export async function setModelInCollection(collectionId, modelId, on) {
+  const res = await fetch(`${BASE}/collections/${collectionId}/models/${modelId}`, {
+    method: on ? 'PUT' : 'DELETE',
+  });
+  return res.json();
+}
+
+export async function fetchModelCollections(modelId) {
+  const res = await fetch(`${BASE}/models/${modelId}/collections`);
+  return res.json();
+}
+
+export async function fetchCounts() {
+  const res = await fetch(`${BASE}/counts`);
+  return res.json();
+}
