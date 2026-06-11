@@ -121,17 +121,17 @@ export default function BrowsePage({ view, onViewChange, sort, onSortChange, q, 
   return (
     <>
       {/* Header bar */}
-      <header className="flex shrink-0 items-center justify-between gap-5 border-b border-line px-[30px] py-[18px]">
+      <header className="flex shrink-0 flex-col gap-3 border-b border-line px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-5 lg:px-[30px] lg:py-[18px]">
         <div className="font-display text-[19px] font-semibold">
           {title} <span className="ml-1 font-normal text-dim">{total.toLocaleString()}</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex gap-1">
+          <div className="-mx-1 flex gap-1 overflow-x-auto px-1 lg:mx-0 lg:overflow-visible lg:px-0">
             {SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => onSortChange(opt.value)}
-                className={`rounded-lg border px-[13px] py-[7px] text-[13px] transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-lg border px-[13px] py-[7px] text-[13px] transition-colors ${
                   sort === opt.value
                     ? 'border-line bg-panel text-ink'
                     : 'border-transparent text-dim hover:text-ink'
@@ -141,11 +141,11 @@ export default function BrowsePage({ view, onViewChange, sort, onSortChange, q, 
               </button>
             ))}
           </div>
-          <span className="h-[22px] w-px bg-line" />
+          <span className="hidden h-[22px] w-px bg-line lg:block" />
           <button
             onClick={onReindex}
             disabled={reindexing}
-            className="whitespace-nowrap rounded-[10px] border border-line bg-panel px-4 py-[9px] text-[13px] text-dim transition-colors hover:border-accent hover:text-ink disabled:opacity-50"
+            className="hidden whitespace-nowrap rounded-[10px] border border-line bg-panel px-4 py-[9px] text-[13px] text-dim transition-colors hover:border-accent hover:text-ink disabled:opacity-50 lg:block"
           >
             {reindexing ? 'Syncing…' : 'Sync library'}
           </button>
@@ -153,7 +153,7 @@ export default function BrowsePage({ view, onViewChange, sort, onSortChange, q, 
       </header>
 
       {/* Scroll area */}
-      <div ref={scrollRef} className="main-scroll flex-1 overflow-y-auto px-[30px] pb-10 pt-[26px]">
+      <div ref={scrollRef} className="main-scroll flex-1 overflow-y-auto px-4 pb-10 pt-5 sm:px-6 lg:px-[30px] lg:pt-[26px]">
         {showFeatured && featured.length >= 5 && (
           <>
             <div className="mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[.2em] text-faint">
@@ -186,7 +186,7 @@ export default function BrowsePage({ view, onViewChange, sort, onSortChange, q, 
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(224px,1fr))] gap-3.5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(224px,1fr))] sm:gap-3.5">
           {models.map((model) => (
             <ModelCard
               key={model.id}

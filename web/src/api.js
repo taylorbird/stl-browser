@@ -86,6 +86,22 @@ export async function fetchModelCollections(modelId) {
   return res.json();
 }
 
+export async function scrapeImages(url) {
+  const res = await fetch(`${BASE}/scrape-images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  return res.json();
+}
+
+// formData carries: title, creator, creatorFolder?, date?, description?, sourceUrl?,
+// imageUrls (JSON string of selected scraped URLs), modelFiles[], images[].
+export async function createModel(formData) {
+  const res = await fetch(`${BASE}/models`, { method: 'POST', body: formData });
+  return res.json();
+}
+
 export async function fetchCounts() {
   const res = await fetch(`${BASE}/counts`);
   return res.json();

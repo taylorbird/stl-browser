@@ -1,6 +1,30 @@
 import { Router } from 'express';
-import { createReadStream, readdirSync, statSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { createReadStream, readdirSync, statSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
+import { join, extname, basename } from 'node:path';
+import { tmpdir } from 'node:os';
+import multer from 'multer';
+import { indexModelFolder } from './indexer.js';
+import { slugify, uniqueDirName, extractImageUrls, MODEL_FILE_EXTS, IMAGE_FILE_EXTS } from './addModel.js';
+
+const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+// Download a remote image into destDir, validating it's actually an image.
+// Returns the saved filename. Throws on non-2xx, non-image, or network error.
+async function downloadImage(url, destDir, index) {
+  const resp = await fetch(url, { headers: { 'User-Agent': BROWSER_UA }, redirect: 'follow' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const ct = resp.headers.get('content-type') || '';
+  if (!ct.startsWith('image/')) throw new Error(`not an image (${ct || 'unknown type'})`);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  let name = '';
+  try { name = basename(new URL(url).pathname); } catch { /* fall through */ }
+  if (!/\.(jpe?g|png|gif|webp)$/i.test(name)) {
+    const sub = ct.split('/')[1].split(';')[0].replace('jpeg', 'jpg');
+    name = `image-${index}.${sub || 'jpg'}`;
+  }
+  writeFileSync(join(destDir, name), buf);
+  return name;
+}
 
 export function createRoutes(db, dataDir) {
   const router = Router();
@@ -294,6 +318,117 @@ export function createRoutes(db, dataDir) {
   function userId(req) {
     return req.headers['remote-user'] || req.headers['remote-email'] || process.env.DEFAULT_USER || null;
   }
+
+  // ── Add Model (owner-only writes to the NAS) ──
+  const uploadTmp = join(tmpdir(), 'curio-uploads');
+  mkdirSync(uploadTmp, { recursive: true });
+  const maxUploadMb = Number(process.env.MAX_UPLOAD_MB) || 2048;
+  const upload = multer({
+    dest: uploadTmp,
+    limits: { fileSize: maxUploadMb * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const allowed = file.fieldname === 'images' ? IMAGE_FILE_EXTS : MODEL_FILE_EXTS;
+      if (allowed.has(extname(file.originalname).toLowerCase())) return cb(null, true);
+      cb(new Error(`file type not allowed: ${file.originalname}`));
+    },
+  });
+
+  // Run the multipart parse, mapping multer rejections to JSON errors and
+  // sweeping any temp files multer saved before the rejection hit.
+  const uploadFields = upload.fields([{ name: 'modelFiles' }, { name: 'images' }]);
+  const parseUpload = (req, res, next) => {
+    uploadFields(req, res, (err) => {
+      if (!err) return next();
+      for (const list of Object.values(req.files || {})) {
+        for (const f of list) { try { rmSync(f.path, { force: true }); } catch { /* ignore */ } }
+      }
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `file too large (max ${maxUploadMb} MB)` });
+      }
+      res.status(400).json({ error: err.message });
+    });
+  };
+
+  // Scrape candidate image URLs from a page (returns URLs only — downloads nothing).
+  router.post('/api/scrape-images', async (req, res) => {
+    const user = userId(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const url = (req.body?.url || '').trim();
+    if (!url) return res.status(400).json({ error: 'url is required' });
+    try {
+      const resp = await fetch(url, { headers: { 'User-Agent': BROWSER_UA }, redirect: 'follow' });
+      const html = await resp.text();
+      res.json({ images: extractImageUrls(html, resp.url || url) });
+    } catch (err) {
+      res.status(502).json({ error: 'Could not fetch page', detail: err.message });
+    }
+  });
+
+  // Create a single model: write files + metadata.md into a new NAS folder, then index it.
+  router.post('/api/models', parseUpload, async (req, res) => {
+    const modelFiles = req.files?.modelFiles || [];
+    const imageUploads = req.files?.images || [];
+    const tempPaths = [...modelFiles, ...imageUploads].map((f) => f.path);
+    const cleanupTemp = () => { for (const p of tempPaths) { try { rmSync(p, { force: true }); } catch { /* ignore */ } } };
+
+    const user = userId(req);
+    if (!user) { cleanupTemp(); return res.status(401).json({ error: 'Authentication required' }); }
+
+    const title = (req.body.title || '').trim();
+    const creator = (req.body.creator || '').trim();
+    if (!title || !creator) { cleanupTemp(); return res.status(400).json({ error: 'title and creator are required' }); }
+    if (modelFiles.length === 0) { cleanupTemp(); return res.status(400).json({ error: 'at least one model file is required' }); }
+
+    const creatorFolder = (req.body.creatorFolder || '').trim() || slugify(creator);
+    const creatorDir = join(dataDir, creatorFolder);
+    const modelSlug = uniqueDirName(creatorDir, slugify(title));
+    const folderPath = `${creatorFolder}/${modelSlug}`;
+    const modelDir = join(creatorDir, modelSlug);
+
+    let imageUrls = [];
+    try { imageUrls = JSON.parse(req.body.imageUrls || '[]'); } catch { imageUrls = []; }
+
+    const imagesFailed = [];
+    try {
+      mkdirSync(modelDir, { recursive: true });
+      // Move uploaded files in (copy + remove temp — temp and NAS are different filesystems).
+      for (const f of [...modelFiles, ...imageUploads]) {
+        copyFileSync(f.path, join(modelDir, basename(f.originalname)));
+        rmSync(f.path, { force: true });
+      }
+      // Download the selected scraped images; skip and report failures.
+      // Track url→saved filename so a scraped image can be chosen as the preview.
+      const scrapedNames = new Map();
+      let i = 0;
+      for (const url of imageUrls) {
+        try { scrapedNames.set(url, await downloadImage(url, modelDir, i++)); }
+        catch (err) { imagesFailed.push({ url, error: err.message }); }
+      }
+
+      // Resolve the chosen preview ("upload:<filename>" or "url:<scraped url>") to a real filename.
+      const preview = (req.body.preview || '').trim();
+      let previewName = null;
+      if (preview.startsWith('upload:')) previewName = basename(preview.slice(7));
+      else if (preview.startsWith('url:')) previewName = scrapedNames.get(preview.slice(4)) || null;
+
+      // metadata.md (reuse patreon_url column for the source link)
+      const date = (req.body.date || '').trim() || new Date().toISOString().slice(0, 10);
+      const sourceUrl = (req.body.sourceUrl || '').trim();
+      const description = (req.body.description || '').trim();
+      const fm = ['---', `title: ${JSON.stringify(title)}`, `creator: ${JSON.stringify(creator)}`, `date: ${date}`];
+      if (sourceUrl) fm.push(`patreon_url: ${JSON.stringify(sourceUrl)}`);
+      if (previewName) fm.push(`preview: ${JSON.stringify(previewName)}`);
+      fm.push('---', '', description, '');
+      writeFileSync(join(modelDir, 'metadata.md'), fm.join('\n'));
+
+      const id = indexModelFolder(db, dataDir, folderPath);
+      res.status(201).json({ id, folder_path: folderPath, imagesFailed });
+    } catch (err) {
+      cleanupTemp();
+      try { rmSync(modelDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   // ── Favorites (per-user) ──
   const listFavorites = db.prepare('SELECT model_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC');

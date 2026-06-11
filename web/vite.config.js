@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:4001',
         // Dev stand-in for the auth proxy (TinyAuth): inject the identity
         // headers the API trusts. In production the proxy sets these.
         headers: {

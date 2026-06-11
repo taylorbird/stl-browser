@@ -5,7 +5,8 @@ services:
     # No published port on purpose: the web container proxies /api internally.
     # Exposing 3001 directly lets anyone spoof the Remote-User identity header.
     volumes:
-      - /mnt/nas/projects/3dprint/models-new:/data:ro
+      # Read-write so the "Add model" feature can write new model folders to the library.
+      - /mnt/nas/projects/3dprint/models-new:/data
       - /opt/docker_apps/stlfinder/config:/config
     environment:
       - NODE_ENV=production

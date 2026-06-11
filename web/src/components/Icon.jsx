@@ -10,6 +10,11 @@ const ICONS = {
   chevr: { vb: '0 0 18 18', el: <path d="M7 4.5L11.5 9 7 13.5" /> },
   shuffle: { vb: '0 0 18 18', el: <><path d="M2.5 4.5h3l7 9h3" /><path d="M2.5 13.5h3l2.1-2.7M9.4 7.2l3.1-2.7h3" /><path d="M13.5 2.5l2 2-2 2M13.5 11.5l2 2-2 2" /></> },
   download: { vb: '0 0 16 16', el: <path d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10" /> },
+  menu: { vb: '0 0 18 18', el: <path d="M3 5h12M3 9h12M3 13h12" /> },
+  close: { vb: '0 0 18 18', el: <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" /> },
+  refresh: { vb: '0 0 18 18', el: <><path d="M14.5 3.5v3.2h-3.2" /><path d="M14.2 6.7a5.5 5.5 0 1 0 1 4" /></> },
+  bookmark: { vb: '0 0 18 18', el: <path d="M4.6 2.8h8.8a.8.8 0 0 1 .8.8v11.6l-5.2-3-5.2 3V3.6a.8.8 0 0 1 .8-.8z" /> },
+  layers: { vb: '0 0 18 18', el: <><path d="M9 2.4l6.4 3.3L9 9 2.6 5.7 9 2.4z" /><path d="M2.6 9l6.4 3.3L15.4 9" /><path d="M2.6 12.3l6.4 3.3 6.4-3.3" /></> },
 };
 
 export default function Icon({ name, className = '' }) {

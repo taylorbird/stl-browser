@@ -27,7 +27,7 @@ export default function SettingsDialog({ creators, onDismiss }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDismiss}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onDismiss}>
       <div
         className="flex max-h-[80vh] w-full max-w-xl flex-col rounded-2xl border border-line bg-canvas"
         onClick={(e) => e.stopPropagation()}
@@ -54,7 +54,7 @@ export default function SettingsDialog({ creators, onDismiss }) {
               {creators.map((c) => {
                 const current = weights[c.name] ?? 1;
                 return (
-                  <div key={c.name} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-panel2">
+                  <div key={c.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-2 py-2 hover:bg-panel2">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel2 font-mono text-[9px] text-dim">
                       {c.hasLogo ? (
                         <img src={creatorLogoUrl(c.folder)} alt="" className="h-full w-full object-cover" />
@@ -63,7 +63,7 @@ export default function SettingsDialog({ creators, onDismiss }) {
                       )}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[13.5px]">{c.name}</span>
-                    <div className="flex gap-0.5 rounded-lg bg-panel2 p-0.5">
+                    <div className="flex shrink-0 gap-0.5 rounded-lg bg-panel2 p-0.5 max-sm:w-full max-sm:justify-between">
                       {STEPS.map((s) => (
                         <button
                           key={s.value}

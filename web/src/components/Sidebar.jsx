@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { fetchMe, creatorLogoUrl } from '../api';
 import { monogram } from '../utils';
 import Icon from './Icon';
@@ -35,7 +36,7 @@ const CREATORS_COLLAPSED = 6;
 
 export default function Sidebar({
   view, onViewChange, counts, collections, creators,
-  q, onSearch, onNewCollection, onOpenSettings,
+  q, onSearch, onNewCollection, onOpenSettings, open = false, onClose,
 }) {
   const [owner, setOwner] = useState(null);
   const [creatorsExpanded, setCreatorsExpanded] = useState(false);
@@ -59,13 +60,25 @@ export default function Sidebar({
   const ownerLabel = owner?.name || owner?.email || 'Library owner';
 
   return (
-    <aside className="flex h-screen w-[272px] shrink-0 flex-col border-r border-line bg-canvas px-3.5 py-[18px]">
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[272px] shrink-0 flex-col border-r border-line bg-canvas px-3.5 py-[18px] transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+        open ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       {/* Brand */}
       <div className="mb-5 flex items-center gap-[11px] px-1.5 py-1">
         <span className="relative h-7 w-7 shrink-0 rounded-lg bg-accent">
           <span className="absolute inset-[7px] rotate-45 rounded-[2px] border-[1.5px] border-accent-ink" />
         </span>
         <span className="font-display text-[17px] font-bold tracking-[.15em]">CURIO</span>
+        {/* Close (drawer only) */}
+        <button
+          onClick={onClose}
+          title="Close menu"
+          className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-dim hover:bg-panel hover:text-ink lg:hidden"
+        >
+          <Icon name="close" className="h-[18px] w-[18px]" />
+        </button>
       </div>
 
       {/* Search */}
@@ -80,6 +93,16 @@ export default function Sidebar({
         />
         <kbd className="rounded-[5px] border border-line px-1.5 py-0.5 font-mono text-[10px] text-dim">⌘K</kbd>
       </div>
+
+      {/* Add model */}
+      <Link
+        to="/add"
+        onClick={onClose}
+        className="mb-[18px] flex items-center justify-center gap-2 rounded-[10px] border border-accent/50 bg-accent-dim px-3 py-2.5 text-[13px] font-semibold text-accent transition-colors hover:bg-accent hover:text-accent-ink"
+      >
+        <Icon name="plus" className="h-4 w-4" />
+        Add model
+      </Link>
 
       {/* Library nav */}
       <nav className="mb-6 flex flex-col gap-0.5">

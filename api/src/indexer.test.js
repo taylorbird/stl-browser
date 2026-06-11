@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { initDb } from './db.js';
-import { reindex } from './indexer.js';
+import { reindex, indexModelFolder } from './indexer.js';
 
 describe('indexer', () => {
   let tmpDir, dataDir, db;
@@ -123,5 +123,73 @@ describe('indexer', () => {
   it('detects stale models', () => {
     const stats = reindex(db, dataDir);
     assert.deepEqual(stats.stale, []);
+  });
+});
+
+describe('indexModelFolder (single-folder index)', () => {
+  let tmpDir, dataDir, db;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'stl-one-'));
+    dataDir = join(tmpDir, 'data');
+    mkdirSync(join(dataDir, 'Maker', 'dragon-bust'), { recursive: true });
+    writeFileSync(join(dataDir, 'Maker', 'dragon-bust', 'metadata.md'), [
+      '---', 'title: Dragon Bust', 'creator: Maker', 'date: 2026-06-09', '---',
+      '', 'A fierce dragon bust.',
+    ].join('\n'));
+    writeFileSync(join(dataDir, 'Maker', 'dragon-bust', 'dragon.stl'), 'fake-stl');
+    writeFileSync(join(dataDir, 'Maker', 'dragon-bust', 'render.jpg'), 'fake-jpg');
+    db = initDb(join(tmpDir, 'one.db'));
+  });
+
+  after(() => {
+    db.close();
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it('indexes a single folder and returns its model id', () => {
+    const id = indexModelFolder(db, dataDir, 'Maker/dragon-bust');
+    assert.ok(Number.isInteger(id) && id > 0);
+    const row = db.prepare('SELECT * FROM models WHERE id = ?').get(id);
+    assert.equal(row.title, 'Dragon Bust');
+    assert.equal(row.creator, 'Maker');
+    assert.equal(row.preview_filename, 'render.jpg');
+    assert.ok(JSON.parse(row.files).includes('dragon.stl'));
+  });
+
+  it('makes the new model findable via FTS', () => {
+    const hits = db.prepare('SELECT rowid FROM models_fts WHERE models_fts MATCH ?').all('dragon');
+    assert.ok(hits.length > 0);
+  });
+
+  it('is idempotent — re-indexing updates in place, no duplicate row', () => {
+    const id1 = indexModelFolder(db, dataDir, 'Maker/dragon-bust');
+    const id2 = indexModelFolder(db, dataDir, 'Maker/dragon-bust');
+    assert.equal(id1, id2);
+    const count = db.prepare("SELECT COUNT(*) AS n FROM models WHERE folder_path = 'Maker/dragon-bust'").get();
+    assert.equal(count.n, 1);
+  });
+
+  it('honors an explicit preview: from metadata over first-image-found', () => {
+    mkdirSync(join(dataDir, 'Maker', 'two-shots'), { recursive: true });
+    writeFileSync(join(dataDir, 'Maker', 'two-shots', 'metadata.md'), [
+      '---', 'title: Two Shots', 'creator: Maker', 'preview: b.jpg', '---', '', 'desc',
+    ].join('\n'));
+    writeFileSync(join(dataDir, 'Maker', 'two-shots', 'a.jpg'), 'jpgA');
+    writeFileSync(join(dataDir, 'Maker', 'two-shots', 'b.jpg'), 'jpgB');
+    const id = indexModelFolder(db, dataDir, 'Maker/two-shots');
+    const row = db.prepare('SELECT preview_filename FROM models WHERE id = ?').get(id);
+    assert.equal(row.preview_filename, 'b.jpg');
+  });
+
+  it('falls back to first image when preview: names a missing file', () => {
+    mkdirSync(join(dataDir, 'Maker', 'bad-preview'), { recursive: true });
+    writeFileSync(join(dataDir, 'Maker', 'bad-preview', 'metadata.md'), [
+      '---', 'title: Bad Preview', 'creator: Maker', 'preview: nope.jpg', '---', '', 'desc',
+    ].join('\n'));
+    writeFileSync(join(dataDir, 'Maker', 'bad-preview', 'only.png'), 'png');
+    const id = indexModelFolder(db, dataDir, 'Maker/bad-preview');
+    const row = db.prepare('SELECT preview_filename FROM models WHERE id = ?').get(id);
+    assert.equal(row.preview_filename, 'only.png');
   });
 });

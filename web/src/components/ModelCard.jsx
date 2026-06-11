@@ -51,8 +51,8 @@ export default function ModelCard({ model, favorited, onToggleFavorite }) {
           {stls.length ? `${stls.length} STL${stls.length > 1 ? 's' : ''}` : 'no files'}
         </span>
 
-        {/* Hover actions */}
-        <div className="absolute left-[9px] top-[9px] flex -translate-y-[3px] gap-1.5 opacity-0 transition-all duration-[180ms] group-hover:translate-y-0 group-hover:opacity-100">
+        {/* Hover actions — always visible on touch devices (no hover) */}
+        <div className="absolute left-[9px] top-[9px] flex -translate-y-[3px] gap-1.5 opacity-0 transition-all duration-[180ms] group-hover:translate-y-0 group-hover:opacity-100 [@media(pointer:coarse)]:translate-y-0 [@media(pointer:coarse)]:opacity-100">
           {stls.length > 0 && (
             <button
               onClick={handleDownload}

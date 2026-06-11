@@ -29,7 +29,7 @@ app.post('/api/reindex', (req, res) => {
   res.json(stats);
 });
 
-const port = 3001;
+const port = Number(process.env.PORT) || 3001;
 app.listen(port, () => {
   console.log(`API listening on port ${port}`);
   console.log(`Data directory: ${DATA_DIR}`);

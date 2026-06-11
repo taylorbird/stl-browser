@@ -19,7 +19,7 @@ export default function StaleModelsDialog({ models, onConfirm, onDismiss }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto">
-      <div className="max-w-lg mx-auto my-16 bg-gray-900 rounded-xl border border-gray-700">
+      <div className="mx-4 my-16 max-w-lg rounded-xl border border-gray-700 bg-gray-900 sm:mx-auto">
         <div className="p-4 border-b border-gray-800">
           <h2 className="text-lg font-bold">Stale Models Detected</h2>
           <p className="text-sm text-gray-400 mt-1">
