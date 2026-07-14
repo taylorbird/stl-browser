@@ -24,16 +24,17 @@ export function uniqueDirName(parentDir, base) {
   return `${base}-${n}`;
 }
 
-// Decode the handful of HTML entities that show up in URL attributes (&amp; chiefly).
+// Decode HTML entities that show up in attributes/meta text: numeric (&#39;),
+// hex (&#x27;), and the common named ones. Numeric/hex first so a decoded '&'
+// from a named entity can't be re-interpreted.
 function decodeEntities(s) {
   return s
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
     .replace(/&amp;/gi, '&')
-    .replace(/&#0*38;/g, '&')
-    .replace(/&#x0*26;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
-    .replace(/&#0*39;/g, "'")
     .replace(/&apos;/gi, "'");
 }
 
@@ -86,4 +87,38 @@ export function extractImageUrls(html, baseUrl) {
   }
 
   return [...new Set(found)];
+}
+
+// Pull the meta content for the first matching og/twitter/name key from HTML.
+function metaContent(html, keyRe) {
+  const metaRe = /<meta\b[^>]*>/gi;
+  let m;
+  while ((m = metaRe.exec(html))) {
+    const tag = m[0];
+    const key = (tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1];
+    if (key && keyRe.test(key)) {
+      const content = (tag.match(/content\s*=\s*["']([^"']*)["']/i) || [])[1];
+      const val = content ? decodeEntities(content).trim() : '';
+      if (val) return val;
+    }
+  }
+  return '';
+}
+
+// Extract text metadata from server-rendered HTML: title, description, site name, date.
+// Prefers Open Graph / Twitter card tags, falling back to <title>. Date comes from the
+// standard article:published_time tag (normalized to YYYY-MM-DD); creator has no standard
+// meta field, so we surface siteName only as a weak hint.
+export function extractPageMeta(html) {
+  const h = String(html || '');
+  let title = metaContent(h, /^(og:title|twitter:title)$/i);
+  if (!title) {
+    const t = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (t) title = decodeEntities(t[1].replace(/\s+/g, ' ')).trim();
+  }
+  const description = metaContent(h, /^(og:description|twitter:description|description)$/i);
+  const siteName = metaContent(h, /^og:site_name$/i);
+  const published = metaContent(h, /^article:published_time$/i);
+  const date = /^\d{4}-\d{2}-\d{2}/.test(published) ? published.slice(0, 10) : '';
+  return { title, description, siteName, date };
 }

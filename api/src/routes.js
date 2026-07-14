@@ -4,7 +4,8 @@ import { join, extname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import multer from 'multer';
 import { indexModelFolder } from './indexer.js';
-import { slugify, uniqueDirName, extractImageUrls, MODEL_FILE_EXTS, IMAGE_FILE_EXTS } from './addModel.js';
+import { slugify, uniqueDirName, MODEL_FILE_EXTS, IMAGE_FILE_EXTS } from './addModel.js';
+import { scrapePage } from './importers/index.js';
 
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
@@ -358,7 +359,7 @@ export function createRoutes(db, dataDir) {
     try {
       const resp = await fetch(url, { headers: { 'User-Agent': BROWSER_UA }, redirect: 'follow' });
       const html = await resp.text();
-      res.json({ images: extractImageUrls(html, resp.url || url) });
+      res.json(scrapePage(resp.url || url, html));
     } catch (err) {
       res.status(502).json({ error: 'Could not fetch page', detail: err.message });
     }

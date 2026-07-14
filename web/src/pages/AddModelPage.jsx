@@ -143,13 +143,36 @@ export default function AddModelPage() {
     const res = await scrapeImages(url);
     setScraping(false);
     if (res.error) { setScrapeMsg(res.error); return; }
+
+    // Prefill empty text fields only — never clobber what the user already typed.
+    const filled = [];
+    if (res.title && !title.trim()) { setTitle(res.title); filled.push('title'); }
+    // Snap a scraped creator to the existing canonical name/folder when it matches
+    // (keeps "Blob Lab" from forking a new creator alongside "bloblab").
+    if (res.creator && !creator.trim()) {
+      const match = findCreator(res.creator);
+      if (match) { setCreator(match.name); setCreatorFolder(match.folder); }
+      else onCreatorChange(res.creator);
+      filled.push('creator');
+    }
+    if (res.description && !description.trim()) { setDescription(res.description); filled.push('description'); }
+    if (res.date && !date) { setDate(res.date); filled.push('date'); }
+    if (!sourceUrl) setSourceUrl(url);
+
     const have = new Set(images.filter((i) => i.kind === 'scrape').map((i) => i.url));
     const fresh = (res.images || []).filter((u) => !have.has(u));
-    if (fresh.length === 0) { setScrapeMsg('No new images found on that page.'); return; }
-    const items = fresh.map((u) => ({ key: `s:${u}`, kind: 'scrape', url: u, src: u, name: u }));
-    setImages((prev) => [...prev, ...items]); // scraped default UNchecked — opt in
-    setScrapeMsg(`Found ${fresh.length} image${fresh.length > 1 ? 's' : ''} — tick the ones to keep.`);
-    if (!sourceUrl) setSourceUrl(url);
+    if (fresh.length) {
+      const items = fresh.map((u) => ({ key: `s:${u}`, kind: 'scrape', url: u, src: u, name: u }));
+      setImages((prev) => [...prev, ...items]); // scraped default UNchecked — opt in
+    }
+
+    // Report what came back: autofilled fields, image count, and the detected site
+    // (a weak creator hint — no page reliably exposes creator/date as metadata).
+    const parts = [];
+    if (filled.length) parts.push(`autofilled ${filled.join(' + ')}`);
+    parts.push(fresh.length ? `found ${fresh.length} image${fresh.length > 1 ? 's' : ''} — tick the ones to keep` : 'no new images found');
+    if (res.siteName) parts.push(`site: ${res.siteName}`);
+    setScrapeMsg(parts.join(' · '));
   };
 
   const toggleImage = (key) => setSelected((prev) => {
@@ -160,9 +183,17 @@ export default function AddModelPage() {
   });
   const makePreview = (key) => { setSelected((prev) => new Set(prev).add(key)); setPreviewKey(key); };
 
+  // Match "Blob Lab" → existing "bloblab" by ignoring case and non-alphanumerics,
+  // so a scraped/typed creator lands in the existing folder instead of forking one.
+  const normName = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const findCreator = (v) => {
+    const k = normName(v);
+    return k ? creators.find((c) => normName(c.name) === k || normName(c.folder) === k) : undefined;
+  };
+
   const onCreatorChange = (v) => {
     setCreator(v);
-    const match = creators.find((c) => c.name.toLowerCase() === v.trim().toLowerCase());
+    const match = findCreator(v);
     setCreatorFolder(match ? match.folder : '');
   };
 
@@ -211,55 +242,95 @@ export default function AddModelPage() {
 
       <h1 className="mb-9 mt-6 font-display text-[30px] font-bold tracking-[-.02em]">Add a model</h1>
 
-      {/* 1 — Images */}
+      {/* Autofill — paste a source link, we grab what we can (title, description, images) */}
+      <section className="mb-9 rounded-2xl border border-line2 bg-panel2 p-4 sm:p-5">
+        <div className="mb-2.5 flex items-center gap-2">
+          <Icon name="search" className="h-4 w-4 text-accent" />
+          <h3 className="text-[13px] font-semibold text-ink">Start from a link</h3>
+          <span className="font-mono text-[11px] text-faint">optional</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={scrapeUrl}
+            onChange={(e) => setScrapeUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onScrape()}
+            placeholder="Paste a product / post URL — Patreon, Thangs, Printables…"
+            className={inputCls}
+          />
+          <button
+            onClick={onScrape}
+            disabled={scraping || !scrapeUrl.trim()}
+            className="shrink-0 rounded-[10px] bg-accent px-5 py-2.5 text-[13px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {scraping ? 'Fetching…' : 'Fetch'}
+          </button>
+        </div>
+        <p className="mt-2 text-[12px] text-faint">
+          {scrapeMsg || 'Fills in the title, description, and images below where it can — you can edit everything after.'}
+        </p>
+      </section>
+
+      {/* Details */}
+      <section className="mb-10">
+        <SectionLabel>Details</SectionLabel>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-[12.5px] text-dim">Title <span className="text-accent">*</span></span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Dragon Bust" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[12.5px] text-dim">Creator <span className="text-accent">*</span></span>
+            <input list="creator-options" value={creator} onChange={(e) => onCreatorChange(e.target.value)}
+              placeholder="Pick existing or type new" className={inputCls} />
+            <datalist id="creator-options">
+              {creators.map((c) => <option key={c.folder} value={c.name} />)}
+            </datalist>
+            <span className="mt-1 block font-mono text-[10.5px] text-faint">
+              {creatorFolder ? `existing → ${creatorFolder}/` : creator.trim() ? 'new creator' : ''}
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[12.5px] text-dim">Date</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[12.5px] text-dim">Source URL</span>
+            <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://…" className={inputCls} />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 block text-[12.5px] text-dim">Description</span>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4}
+              placeholder="Markdown supported…" className={`${inputCls} resize-y`} />
+          </label>
+        </div>
+      </section>
+
+      {/* Images — upload here, or they arrive from the link above */}
       <section className="mb-10">
         <SectionLabel hint={selectedCount ? `${selectedCount} selected` : 'optional'}>Images</SectionLabel>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {/* From a page URL */}
-          <div className="rounded-2xl border border-line2 bg-panel2 p-4">
-            <div className="mb-2 text-[12.5px] font-medium text-dim">Fetch from a page URL</div>
-            <div className="flex gap-2">
-              <input
-                value={scrapeUrl}
-                onChange={(e) => setScrapeUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onScrape()}
-                placeholder="https://…"
-                className={inputCls}
-              />
-              <button
-                onClick={onScrape}
-                disabled={scraping || !scrapeUrl.trim()}
-                className="shrink-0 rounded-[10px] border border-line bg-panel px-3.5 py-2.5 text-[13px] text-ink transition-colors hover:border-accent disabled:opacity-40"
-              >
-                {scraping ? '…' : 'Fetch'}
-              </button>
-            </div>
-            {scrapeMsg && <p className="mt-2 text-[12px] text-faint">{scrapeMsg}</p>}
-          </div>
-          {/* Upload */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setImageDragOver(true); }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setImageDragOver(false); }}
-            onDrop={(e) => {
-              e.preventDefault(); setImageDragOver(false);
-              filesFromDrop(e.dataTransfer).then((walked) => addImageUploads(
-                walked.map((w) => w.file).filter((f) => IMAGE_EXT_RE.test(f.name) || f.type.startsWith('image/'))
-              ));
-            }}
-            className={`flex flex-col items-center justify-center rounded-2xl border border-dashed p-4 text-center transition-colors ${
-              imageDragOver ? 'border-accent bg-accent-dim' : 'border-line bg-panel2'
-            }`}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setImageDragOver(true); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setImageDragOver(false); }}
+          onDrop={(e) => {
+            e.preventDefault(); setImageDragOver(false);
+            filesFromDrop(e.dataTransfer).then((walked) => addImageUploads(
+              walked.map((w) => w.file).filter((f) => IMAGE_EXT_RE.test(f.name) || f.type.startsWith('image/'))
+            ));
+          }}
+          className={`flex flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-8 text-center transition-colors ${
+            imageDragOver ? 'border-accent bg-accent-dim' : 'border-line bg-panel2'
+          }`}
+        >
+          <Icon name="grid" className="mb-3 h-6 w-6 text-faint" />
+          <p className="text-sm text-dim">Drag photos here{scrapeUrl.trim() ? '' : ', or fetch them from a link above'}</p>
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            className="mt-4 rounded-[10px] border border-line bg-panel px-4 py-2 text-[13px] text-ink transition-colors hover:border-accent"
           >
-            <p className="text-[12.5px] text-dim">Drag images, or</p>
-            <button
-              onClick={() => imageInputRef.current?.click()}
-              className="mt-2 rounded-[10px] border border-line bg-panel px-4 py-2 text-[13px] text-ink transition-colors hover:border-accent"
-            >
-              Upload images
-            </button>
-            <input ref={imageInputRef} type="file" multiple accept="image/*" className="hidden"
-              onChange={(e) => { addImageUploads(e.target.files); e.target.value = ''; }} />
-          </div>
+            Upload photos
+          </button>
+          <input ref={imageInputRef} type="file" multiple accept="image/*" className="hidden"
+            onChange={(e) => { addImageUploads(e.target.files); e.target.value = ''; }} />
         </div>
 
         {/* Review grid — pick which to keep; star = preview */}
@@ -303,42 +374,7 @@ export default function AddModelPage() {
         )}
       </section>
 
-      {/* 2 — Details */}
-      <section className="mb-10">
-        <SectionLabel>Details</SectionLabel>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-[12.5px] text-dim">Title <span className="text-accent">*</span></span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Dragon Bust" className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[12.5px] text-dim">Creator <span className="text-accent">*</span></span>
-            <input list="creator-options" value={creator} onChange={(e) => onCreatorChange(e.target.value)}
-              placeholder="Pick existing or type new" className={inputCls} />
-            <datalist id="creator-options">
-              {creators.map((c) => <option key={c.folder} value={c.name} />)}
-            </datalist>
-            <span className="mt-1 block font-mono text-[10.5px] text-faint">
-              {creatorFolder ? `existing → ${creatorFolder}/` : creator.trim() ? 'new creator' : ''}
-            </span>
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[12.5px] text-dim">Date</span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[12.5px] text-dim">Source URL</span>
-            <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://…" className={inputCls} />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-[12.5px] text-dim">Description</span>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4}
-              placeholder="Markdown supported…" className={`${inputCls} resize-y`} />
-          </label>
-        </div>
-      </section>
-
-      {/* 3 — Model files (last — the file list grows long, keep it from burying the form) */}
+      {/* Model files (last — the file list grows long, keep it from burying the form) */}
       <section className="mb-10">
         <SectionLabel hint={modelFiles.length ? `${modelFiles.length} file${modelFiles.length > 1 ? 's' : ''}` : 'required'}>
           Model files
