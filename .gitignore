@@ -24,7 +24,10 @@ __pycache__/
 *.db
 *.db-wal
 *.db-shm
-.claude/
+# Track session continuity (work state + learnings); keep per-machine local settings out
+.claude/*
+!.claude/work/
+!.claude/learnings/
 
 # Downloader configs (contain Patreon session cookie)
 gallery-dl.conf
