@@ -6,11 +6,24 @@
 // etc. This is an information scraper, not a downloader: no files are fetched here.
 //
 // To support a new site, add one file exporting { match(host), refine(html, url, base) }
-// and register it below.
+// and register it below. Most sites serve real HTML to a plain fetch (even JS-rendered
+// SPAs usually carry OG meta server-side). A site that actively blocks non-browser
+// requests (bot-detection challenges) can opt into `render: true` — scrapeUrl() then
+// fetches it through a headless browser (browserless.js) instead of plain fetch. This
+// is a per-importer setting, not a global one: only sites that actually need it pay the
+// extra latency and take on the browserless dependency.
 import { extractImageUrls, extractPageMeta } from '../addModel.js';
+import { fetchRenderedHtml } from '../browserless.js';
 import { patreon } from './patreon.js';
+import { thangs } from './thangs.js';
 
-const registry = [patreon];
+const registry = [patreon, thangs];
+
+function findImporter(url) {
+  let host = '';
+  try { host = new URL(url).hostname; } catch { /* non-URL — no importer can match */ }
+  return registry.find((imp) => imp.match(host));
+}
 
 // Generic, site-agnostic extraction. Shape is the contract every importer refines.
 function genericParse(url, html) {
@@ -29,9 +42,25 @@ function genericParse(url, html) {
 // `url` should be the FINAL (post-redirect) URL so relative images resolve correctly.
 export function scrapePage(url, html) {
   const base = genericParse(url, html);
-  let host = '';
-  try { host = new URL(url).hostname; } catch { /* non-URL — generic only */ }
-  const importer = registry.find((imp) => imp.match(host));
+  const importer = findImporter(url);
   if (!importer) return base;
   return { ...base, ...importer.refine(html, url, base) };
+}
+
+const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+// Fetch + parse a URL end to end. Routes the fetch itself through browserless when the
+// matched importer requires it (render: true); everyone else gets a plain fetch.
+export async function scrapeUrl(url) {
+  const importer = findImporter(url);
+  if (importer?.render) {
+    if (!process.env.BROWSERLESS_URL) {
+      throw new Error(`Can't fetch ${importer.name || 'this site'} without a configured downloader (BROWSERLESS_URL is not set)`);
+    }
+    const html = await fetchRenderedHtml(url);
+    return scrapePage(url, html);
+  }
+  const resp = await fetch(url, { headers: { 'User-Agent': BROWSER_UA }, redirect: 'follow' });
+  const html = await resp.text();
+  return scrapePage(resp.url || url, html);
 }

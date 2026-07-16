@@ -27,7 +27,7 @@ export function uniqueDirName(parentDir, base) {
 // Decode HTML entities that show up in attributes/meta text: numeric (&#39;),
 // hex (&#x27;), and the common named ones. Numeric/hex first so a decoded '&'
 // from a named entity can't be re-interpreted.
-function decodeEntities(s) {
+export function decodeEntities(s) {
   return s
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
@@ -36,6 +36,14 @@ function decodeEntities(s) {
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
     .replace(/&apos;/gi, "'");
+}
+
+// Extract an HTML attribute's value from a tag string, honoring whichever quote
+// character opens it — e.g. content="I've ..." — so the value can contain the
+// other quote type without the match stopping early on it.
+export function attrValue(tag, namePattern) {
+  const m = tag.match(new RegExp(`${namePattern}\\s*=\\s*(["'])((?:(?!\\1)[\\s\\S])*)\\1`, 'i'));
+  return m ? m[2] : undefined;
 }
 
 function parseSrcset(srcset) {
@@ -65,24 +73,24 @@ export function extractImageUrls(html, baseUrl) {
   const metaRe = /<meta\b[^>]*>/gi;
   while ((m = metaRe.exec(html))) {
     const tag = m[0];
-    const key = (tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1];
+    const key = attrValue(tag, '(?:property|name)');
     if (key && /^(og:image(:url)?|twitter:image)$/i.test(key)) {
-      add((tag.match(/content\s*=\s*["']([^"']+)["']/i) || [])[1]);
+      add(attrValue(tag, 'content'));
     }
   }
 
   const imgRe = /<img\b[^>]*>/gi;
   while ((m = imgRe.exec(html))) {
     const tag = m[0];
-    add((tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i) || [])[1]);
-    add((tag.match(/\bdata-src\s*=\s*["']([^"']+)["']/i) || [])[1]);
-    const srcset = (tag.match(/\bsrcset\s*=\s*["']([^"']+)["']/i) || [])[1];
+    add(attrValue(tag, '\\bsrc'));
+    add(attrValue(tag, '\\bdata-src'));
+    const srcset = attrValue(tag, '\\bsrcset');
     if (srcset) parseSrcset(srcset).forEach(add);
   }
 
   const sourceRe = /<source\b[^>]*>/gi;
   while ((m = sourceRe.exec(html))) {
-    const srcset = (m[0].match(/\bsrcset\s*=\s*["']([^"']+)["']/i) || [])[1];
+    const srcset = attrValue(m[0], '\\bsrcset');
     if (srcset) parseSrcset(srcset).forEach(add);
   }
 
@@ -95,9 +103,9 @@ function metaContent(html, keyRe) {
   let m;
   while ((m = metaRe.exec(html))) {
     const tag = m[0];
-    const key = (tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1];
+    const key = attrValue(tag, '(?:property|name)');
     if (key && keyRe.test(key)) {
-      const content = (tag.match(/content\s*=\s*["']([^"']*)["']/i) || [])[1];
+      const content = attrValue(tag, 'content');
       const val = content ? decodeEntities(content).trim() : '';
       if (val) return val;
     }

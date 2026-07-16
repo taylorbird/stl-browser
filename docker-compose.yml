@@ -13,6 +13,10 @@ services:
       # Single-user mode — uncomment if you do NOT run an auth proxy
       # (favorites/collections/settings will belong to this one identity):
       # - DEFAULT_USER=taylor
+      # Only needed for import sites that require a real browser to get past
+      # bot-detection (currently Thangs — see api/src/importers/thangs.js):
+      # - BROWSERLESS_URL=http://browserless.internal
+      # - BROWSERLESS_TOKEN=change-me
     ulimits:
       nofile:
         soft: 65536

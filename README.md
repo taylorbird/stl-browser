@@ -126,6 +126,8 @@ The sliders icon in the sidebar footer opens per-user settings:
 | `DATA_DIR` | `/data` | Library root (mount your models here) |
 | `DB_PATH` | `/config/stl-browser.db` | SQLite database location |
 | `DEFAULT_USER` | *(unset)* | Identity for headerless requests (single-user mode) |
+| `BROWSERLESS_URL` | *(unset)* | Base URL of a self-hosted [browserless](https://www.browserless.io/) instance. Only required for import sites that opt into `render: true` (currently Thangs — see `api/src/importers/`), whose bot-detection blocks plain fetches. Other importers never touch this. |
+| `BROWSERLESS_TOKEN` | *(unset)* | Auth token for the browserless instance above |
 
 Schema migrations are automatic and additive — new versions create any missing
 tables on startup; your database carries forward.
