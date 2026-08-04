@@ -273,21 +273,34 @@ describe('API routes', () => {
   });
 
   describe('model list filters', () => {
-    let extraId, favId;
+    let extraId, favId, oldPubRecentAddId, recentPubOldAddId;
 
     before(() => {
       const today = new Date().toISOString().slice(0, 10);
-      const { lastInsertRowid } = db.prepare(`
-        INSERT INTO models (folder_path, title, creator, date, content, files, preview_filename, indexed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      const now = new Date().toISOString();
+      const ins = db.prepare(`
+        INSERT INTO models (folder_path, title, creator, date, content, files, preview_filename, indexed_at, added_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      extraId = Number(ins.run(
         'CreatorA/2026-06-01-no-stl-model', 'No STL Model', 'CreatorA',
-        today, '', '["photo.jpg"]', null, new Date().toISOString()
-      );
-      extraId = Number(lastInsertRowid);
+        today, '', '["photo.jpg"]', null, now, now
+      ).lastInsertRowid);
+      // Old publish date but added just now → should count as "recently added".
+      oldPubRecentAddId = Number(ins.run(
+        'CreatorA/old-pub-recent-add', 'Old Pub Recent Add', 'CreatorA',
+        '2023-01-01', '', '["m.stl"]', null, now, now
+      ).lastInsertRowid);
+      // Recent publish date but added long ago → should NOT count as recently added.
+      recentPubOldAddId = Number(ins.run(
+        'CreatorA/recent-pub-old-add', 'Recent Pub Old Add', 'CreatorA',
+        today, '', '["m.stl"]', null, now, '2023-01-01'
+      ).lastInsertRowid);
     });
 
     after(() => {
-      db.prepare('DELETE FROM models WHERE id = ?').run(extraId);
+      for (const id of [extraId, oldPubRecentAddId, recentPubOldAddId]) {
+        if (id) db.prepare('DELETE FROM models WHERE id = ?').run(id);
+      }
       if (favId) db.prepare('DELETE FROM favorites WHERE model_id = ?').run(favId);
     });
 
@@ -308,10 +321,11 @@ describe('API routes', () => {
       assert.equal(body.models[0].id, extraId);
     });
 
-    it('recent=1 returns models dated within 30 days', async () => {
+    it('recent=1 keys off added_at (add time), not publish date', async () => {
       const { body } = await request(app, '/api/models?recent=1');
-      assert.equal(body.total, 1);
-      assert.equal(body.models[0].id, extraId);
+      const ids = body.models.map((m) => m.id);
+      assert.ok(ids.includes(oldPubRecentAddId), 'old publish date but recently added → included');
+      assert.ok(!ids.includes(recentPubOldAddId), 'recent publish date but added long ago → excluded');
     });
 
     it('collection=<id> returns that collection\'s models for its owner only', async () => {
@@ -602,6 +616,31 @@ describe('Add Model endpoints', () => {
   it('POST /api/scrape-images rejects anonymous with 401', async () => {
     const { status } = await send(app, '/api/scrape-images', 'POST', { url: 'http://example.com' });
     assert.equal(status, 401);
+  });
+
+  it('POST /api/models saves a scraped image served as application/octet-stream', async () => {
+    // Thangs' GCS-backed images return application/octet-stream, not image/*; the
+    // .jpg extension must still let them through and be saved.
+    const srv = createServer((req, res) => {
+      res.setHeader('content-type', 'application/octet-stream');
+      res.end(Buffer.from('fake-jpeg-bytes'));
+    });
+    await new Promise((r) => srv.listen(0, r));
+    const imgUrl = `http://localhost:${srv.address().port}/uploads/1.jpg`;
+
+    const form = new FormData();
+    form.set('title', 'Octet Model');
+    form.set('creator', 'New Maker');
+    form.set('imageUrls', JSON.stringify([imgUrl]));
+    form.set('preview', `url:${imgUrl}`);
+    form.append('modelFiles', new File(['solid'], 'o.stl', { type: 'model/stl' }));
+
+    const { status, body } = await sendForm(app, '/api/models', form, ALICE);
+    srv.close();
+    assert.equal(status, 201);
+    assert.ok(existsSync(join(dataDir, body.folder_path, '1.jpg')), 'octet-stream image should be saved');
+    const row = db.prepare('SELECT preview_filename FROM models WHERE id = ?').get(body.id);
+    assert.equal(row.preview_filename, '1.jpg');
   });
 });
 

@@ -170,6 +170,19 @@ describe('indexModelFolder (single-folder index)', () => {
     assert.equal(count.n, 1);
   });
 
+  it('sets added_at on insert and preserves it across re-index', () => {
+    const id = indexModelFolder(db, dataDir, 'Maker/dragon-bust');
+    const first = db.prepare('SELECT added_at, date FROM models WHERE id = ?').get(id);
+    assert.ok(first.added_at, 'added_at is set on insert');
+    // added_at is the add time (a full timestamp), not the publish date.
+    assert.notEqual(first.added_at, first.date);
+    assert.match(first.added_at, /^\d{4}-\d{2}-\d{2}T/);
+
+    indexModelFolder(db, dataDir, 'Maker/dragon-bust'); // re-index (full reindex runs every startup)
+    const second = db.prepare('SELECT added_at FROM models WHERE id = ?').get(id);
+    assert.equal(second.added_at, first.added_at, 'added_at survives re-indexing');
+  });
+
   it('honors an explicit preview: from metadata over first-image-found', () => {
     mkdirSync(join(dataDir, 'Maker', 'two-shots'), { recursive: true });
     writeFileSync(join(dataDir, 'Maker', 'two-shots', 'metadata.md'), [

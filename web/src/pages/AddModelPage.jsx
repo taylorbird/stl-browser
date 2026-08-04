@@ -182,6 +182,8 @@ export default function AddModelPage() {
     return n;
   });
   const makePreview = (key) => { setSelected((prev) => new Set(prev).add(key)); setPreviewKey(key); };
+  const selectAllImages = () => setSelected(new Set(images.map((i) => i.key)));
+  const clearImages = () => { setSelected(new Set()); setPreviewKey(null); };
 
   // Match "Blob Lab" → existing "bloblab" by ignoring case and non-alphanumerics,
   // so a scraped/typed creator lands in the existing folder instead of forking one.
@@ -335,7 +337,30 @@ export default function AddModelPage() {
 
         {/* Review grid — pick which to keep; star = preview */}
         {images.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+          <div className="mt-4 flex items-center justify-between">
+            <span className="font-mono text-[11px] uppercase tracking-[.1em] text-faint">
+              {selectedCount} of {images.length} selected
+            </span>
+            <div className="flex items-center gap-1.5 text-[13px]">
+              <button
+                onClick={selectAllImages}
+                disabled={selectedCount === images.length}
+                className="rounded-[10px] border border-line bg-panel px-3 py-1.5 text-ink transition-colors hover:border-accent disabled:opacity-40 disabled:hover:border-line"
+              >
+                Select all
+              </button>
+              <button
+                onClick={clearImages}
+                disabled={selectedCount === 0}
+                className="rounded-[10px] border border-line bg-panel px-3 py-1.5 text-dim transition-colors hover:border-accent hover:text-ink disabled:opacity-40 disabled:hover:border-line disabled:hover:text-dim"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+        {images.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
             {images.map((img) => {
               const on = selected.has(img.key);
               const isPreview = effectivePreview === img.key;

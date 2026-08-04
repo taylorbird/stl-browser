@@ -18,8 +18,8 @@ function parseFolderName(name) {
 function makeStmts(db) {
   return {
     upsertModel: db.prepare(`
-      INSERT INTO models (folder_path, title, creator, date, patreon_url, post_id, content, files, preview_filename, indexed_at)
-      VALUES (@folder_path, @title, @creator, @date, @patreon_url, @post_id, @content, @files, @preview_filename, @indexed_at)
+      INSERT INTO models (folder_path, title, creator, date, patreon_url, post_id, content, files, preview_filename, indexed_at, added_at)
+      VALUES (@folder_path, @title, @creator, @date, @patreon_url, @post_id, @content, @files, @preview_filename, @indexed_at, @added_at)
       ON CONFLICT(folder_path) DO UPDATE SET
         title=@title, creator=@creator, date=@date, patreon_url=@patreon_url,
         post_id=@post_id, content=@content, files=@files, preview_filename=@preview_filename, indexed_at=@indexed_at
@@ -85,6 +85,9 @@ function indexFolder(stmts, dataDir, folderPath) {
     files: JSON.stringify(allFiles),
     preview_filename: previewFile,
     indexed_at: new Date().toISOString(),
+    // Only used by the INSERT; the ON CONFLICT UPDATE deliberately omits added_at so
+    // a model's first-seen time survives re-indexing (full reindex runs every startup).
+    added_at: new Date().toISOString(),
   });
 
   const modelRow = stmts.getModelId.get(folderPath);

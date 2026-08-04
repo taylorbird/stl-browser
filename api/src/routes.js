@@ -15,13 +15,20 @@ async function downloadImage(url, destDir, index) {
   const resp = await fetch(url, { headers: { 'User-Agent': BROWSER_UA }, redirect: 'follow' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const ct = resp.headers.get('content-type') || '';
-  if (!ct.startsWith('image/')) throw new Error(`not an image (${ct || 'unknown type'})`);
-  const buf = Buffer.from(await resp.arrayBuffer());
   let name = '';
-  try { name = basename(new URL(url).pathname); } catch { /* fall through */ }
-  if (!/\.(jpe?g|png|gif|webp)$/i.test(name)) {
-    const sub = ct.split('/')[1].split(';')[0].replace('jpeg', 'jpg');
-    name = `image-${index}.${sub || 'jpg'}`;
+  try { name = decodeURIComponent(basename(new URL(url).pathname)); } catch { name = basename(url); }
+  const hasImgExt = /\.(jpe?g|png|gif|webp)$/i.test(name);
+  // Trust a known image extension even when the content-type isn't image/* — some
+  // hosts (e.g. the Google Cloud Storage bucket backing Thangs) serve images as
+  // application/octet-stream. Only reject when NEITHER the type nor the URL says image.
+  if (!ct.startsWith('image/') && !hasImgExt) {
+    throw new Error(`not an image (${ct || 'unknown type'})`);
+  }
+  const buf = Buffer.from(await resp.arrayBuffer());
+  if (!hasImgExt) {
+    // Reached only when ct is image/* (else we'd have thrown), so sub is a real subtype.
+    const sub = (ct.split('/')[1] || 'jpg').split(';')[0].replace('jpeg', 'jpg');
+    name = `image-${index}.${sub}`;
   }
   writeFileSync(join(destDir, name), buf);
   return name;
@@ -140,7 +147,9 @@ export function createRoutes(db, dataDir) {
       conditions.push("lower(m.files) NOT LIKE '%.stl%'");
     }
     if (req.query.recent === '1') {
-      conditions.push("m.date >= date('now','-30 day')");
+      // "Recently added" = added to the library recently (added_at), not recently
+      // published (date) — a scraped model with an old publish date still counts.
+      conditions.push("m.added_at >= date('now','-30 day')");
     }
     const collectionId = parseInt(req.query.collection, 10);
     if (!isNaN(collectionId)) {
@@ -563,7 +572,7 @@ export function createRoutes(db, dataDir) {
 
   // ── Sidebar nav counts ──
   const countAll = db.prepare('SELECT COUNT(*) n FROM models');
-  const countRecent = db.prepare("SELECT COUNT(*) n FROM models WHERE date >= date('now','-30 day')");
+  const countRecent = db.prepare("SELECT COUNT(*) n FROM models WHERE added_at >= date('now','-30 day')");
   const countFavorites = db.prepare('SELECT COUNT(*) n FROM favorites WHERE user_id = ?');
   const countMissing = db.prepare("SELECT COUNT(*) n FROM models WHERE lower(files) NOT LIKE '%.stl%'");
 

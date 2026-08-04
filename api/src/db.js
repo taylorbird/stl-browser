@@ -19,6 +19,17 @@ export function initDb(path = DB_PATH) {
     db.exec('DROP TABLE collection_models; DROP TABLE collections;');
   }
 
+  // Add added_at (first-seen time) to pre-existing models tables. "Recently added"
+  // keys off this — set once on insert, preserved on re-index (see indexer.js) — so a
+  // model added today appears even when its published `date` is old. Backfill existing
+  // rows from their publish date (falling back to indexed_at) so the shelf's current
+  // contents don't change; only newly added models get true add-time going forward.
+  const modelCols = db.prepare('PRAGMA table_info(models)').all();
+  if (modelCols.length > 0 && !modelCols.some(c => c.name === 'added_at')) {
+    db.exec('ALTER TABLE models ADD COLUMN added_at TEXT');
+    db.exec('UPDATE models SET added_at = COALESCE(date, indexed_at) WHERE added_at IS NULL');
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS models (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,11 +42,13 @@ export function initDb(path = DB_PATH) {
       content TEXT,
       files TEXT DEFAULT '[]',
       preview_filename TEXT,
-      indexed_at TEXT NOT NULL
+      indexed_at TEXT NOT NULL,
+      added_at TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_models_creator ON models(creator);
     CREATE INDEX IF NOT EXISTS idx_models_date ON models(date);
+    CREATE INDEX IF NOT EXISTS idx_models_added_at ON models(added_at);
 
     CREATE VIRTUAL TABLE IF NOT EXISTS models_fts USING fts5(
       title, creator, content,

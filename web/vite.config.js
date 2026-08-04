@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    allowedHosts: ['ccp.orb.local'],
     proxy: {
       '/api': {
         target: 'http://localhost:4001',
