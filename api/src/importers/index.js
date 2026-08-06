@@ -61,6 +61,13 @@ export async function scrapeUrl(url) {
     return scrapePage(url, html);
   }
   const resp = await fetch(url, { headers: { 'User-Agent': BROWSER_UA }, redirect: 'follow' });
+  // A blocked request still has a body (a bot-detection challenge page). Parsing it
+  // yields a junk "scrape" — e.g. title "Just a moment..." with no images — that looks
+  // like success to the caller, so fail loudly instead. A site that starts doing this
+  // needs `render: true`, not a silent empty result.
+  if (!resp.ok) {
+    throw new Error(`Could not fetch page (HTTP ${resp.status}) — the site may be blocking automated requests`);
+  }
   const html = await resp.text();
   return scrapePage(resp.url || url, html);
 }

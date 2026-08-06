@@ -9,6 +9,18 @@ import { scrapeUrl } from './importers/index.js';
 
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
+// "Missing files" = the folder has no printable/model file of ANY kind. This used to test
+// only for '.stl', which flagged every 3MF-only or STEP-only model as incomplete — 35 of 43
+// flagged models were false positives once the library stopped being STL-only. Archives
+// count as present: they're stored opaque (never extracted server-side), so a zip-only
+// model does have its files. Still a substring heuristic — the `files` column is a JSON
+// array of names, so an odd name like "notes.zip.txt" can read as an archive.
+const MODEL_FILE_EXTS_SQL = ['.stl', '.3mf', '.obj', '.step', '.stp', '.zip', '.rar', '.7z', '.gcode'];
+
+// SQL predicate: true when the model HAS at least one model file. Extensions are a
+// hardcoded literal list (no user input), so inlining them is injection-safe.
+const hasModelFileSql = (col) => MODEL_FILE_EXTS_SQL.map((ext) => `lower(${col}) LIKE '%${ext}%'`).join(' OR ');
+
 // Download a remote image into destDir, validating it's actually an image.
 // Returns the saved filename. Throws on non-2xx, non-image, or network error.
 async function downloadImage(url, destDir, index) {
@@ -144,7 +156,7 @@ export function createRoutes(db, dataDir) {
       params.push(user);
     }
     if (req.query.missing === '1') {
-      conditions.push("lower(m.files) NOT LIKE '%.stl%'");
+      conditions.push(`NOT (${hasModelFileSql('m.files')})`);
     }
     if (req.query.recent === '1') {
       // "Recently added" = added to the library recently (added_at), not recently
@@ -574,7 +586,7 @@ export function createRoutes(db, dataDir) {
   const countAll = db.prepare('SELECT COUNT(*) n FROM models');
   const countRecent = db.prepare("SELECT COUNT(*) n FROM models WHERE added_at >= date('now','-30 day')");
   const countFavorites = db.prepare('SELECT COUNT(*) n FROM favorites WHERE user_id = ?');
-  const countMissing = db.prepare("SELECT COUNT(*) n FROM models WHERE lower(files) NOT LIKE '%.stl%'");
+  const countMissing = db.prepare(`SELECT COUNT(*) n FROM models WHERE NOT (${hasModelFileSql('files')})`);
 
   router.get('/api/counts', (req, res) => {
     const user = userId(req);

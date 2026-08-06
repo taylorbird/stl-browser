@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { scrapePage } from './index.js';
+import { createServer } from 'node:http';
+import { scrapePage, scrapeUrl } from './index.js';
 import { thangs } from './thangs.js';
 
 // Mirrors the shape of a real Patreon post page's server HTML (og/article meta + a
@@ -101,5 +102,41 @@ describe('scrapePage — Thangs importer', () => {
 
   it('drops recommendation-card and avatar images (different alt text)', () => {
     assert.ok(!r.images.some((u) => u.includes('dovetail') || u.includes('loftedgoods.jpg')));
+  });
+});
+
+describe('scrapeUrl — blocked requests', () => {
+  // Bot-detection challenges (Cloudflare et al) answer with an error status AND a full
+  // HTML body. Parsing that body produced a junk-but-successful scrape: title
+  // "Just a moment...", no images, HTTP 200 to the client. It must throw instead.
+  const serveChallenge = (status) => {
+    const server = createServer((req, res) => {
+      res.writeHead(status, { 'Content-Type': 'text/html' });
+      res.end('<head><title>Just a moment...</title></head>');
+    });
+    return new Promise((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port }));
+    });
+  };
+
+  it('throws on a 403 challenge instead of returning its title as the scrape', async () => {
+    const { server, port } = await serveChallenge(403);
+    try {
+      await assert.rejects(
+        () => scrapeUrl(`http://127.0.0.1:${port}/post`),
+        /HTTP 403/
+      );
+    } finally {
+      server.close();
+    }
+  });
+
+  it('throws on a 503 challenge too', async () => {
+    const { server, port } = await serveChallenge(503);
+    try {
+      await assert.rejects(() => scrapeUrl(`http://127.0.0.1:${port}/post`), /HTTP 503/);
+    } finally {
+      server.close();
+    }
   });
 });

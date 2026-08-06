@@ -274,6 +274,7 @@ describe('API routes', () => {
 
   describe('model list filters', () => {
     let extraId, favId, oldPubRecentAddId, recentPubOldAddId;
+    let threeMfOnlyId, stepOnlyId, zipOnlyId;
 
     before(() => {
       const today = new Date().toISOString().slice(0, 10);
@@ -295,10 +296,23 @@ describe('API routes', () => {
         'CreatorA/recent-pub-old-add', 'Recent Pub Old Add', 'CreatorA',
         today, '', '["m.stl"]', null, now, '2023-01-01'
       ).lastInsertRowid);
+      // Printable but STL-less: these are complete models and must NOT read as "missing".
+      threeMfOnlyId = Number(ins.run(
+        'CreatorA/3mf-only', '3MF Only', 'CreatorA',
+        today, '', '["PARROT 3MF.3mf","photo.jpg"]', null, now, now
+      ).lastInsertRowid);
+      stepOnlyId = Number(ins.run(
+        'CreatorA/step-only', 'STEP Only', 'CreatorA',
+        today, '', '["Desk Organiser Base.step","photo.png"]', null, now, now
+      ).lastInsertRowid);
+      zipOnlyId = Number(ins.run(
+        'CreatorA/zip-only', 'ZIP Only', 'CreatorA',
+        today, '', '["bundle.zip","photo.jpg"]', null, now, now
+      ).lastInsertRowid);
     });
 
     after(() => {
-      for (const id of [extraId, oldPubRecentAddId, recentPubOldAddId]) {
+      for (const id of [extraId, oldPubRecentAddId, recentPubOldAddId, threeMfOnlyId, stepOnlyId, zipOnlyId]) {
         if (id) db.prepare('DELETE FROM models WHERE id = ?').run(id);
       }
       if (favId) db.prepare('DELETE FROM favorites WHERE model_id = ?').run(favId);
@@ -315,10 +329,24 @@ describe('API routes', () => {
       assert.equal(bobView.total, 0);
     });
 
-    it('missing=1 returns models with no .stl files', async () => {
+    it('missing=1 returns only models with no model file of any type', async () => {
       const { body } = await request(app, '/api/models?missing=1');
       assert.equal(body.total, 1);
       assert.equal(body.models[0].id, extraId);
+    });
+
+    it('missing=1 does NOT flag 3mf-only, step-only or zip-only models', async () => {
+      const { body } = await request(app, '/api/models?missing=1');
+      const ids = body.models.map((m) => m.id);
+      assert.ok(!ids.includes(threeMfOnlyId), '3MF-only is a complete model');
+      assert.ok(!ids.includes(stepOnlyId), 'STEP-only is a complete model');
+      assert.ok(!ids.includes(zipOnlyId), 'archives are stored opaque, so a zip counts as files present');
+    });
+
+    it('counts.missing agrees with the missing=1 filter', async () => {
+      const { body: counts } = await request(app, '/api/counts');
+      const { body: list } = await request(app, '/api/models?missing=1');
+      assert.equal(counts.missing, list.total);
     });
 
     it('recent=1 keys off added_at (add time), not publish date', async () => {
