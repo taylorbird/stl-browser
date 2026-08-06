@@ -2,9 +2,24 @@
 
 Durable learnings for CURIO's Add-Model URL-import flow: scraping web page metadata (title/creator/date/description/images) and the per-site importer registry that refines the generic scrape. CURIO = Express API (`api/`) + React/Vite frontend (`web/`).
 
-## Patreon scraping (no headless browser needed)
+## Patreon scraping — BLOCKED by Cloudflare as of 2026-08-05
 
-Patreon post pages are a JS-rendered SPA (Next.js — tags carry `data-next-head`), **but the server HTML from a plain `fetch` with a browser User-Agent already carries full metadata**: Open Graph + Twitter card + `article:*` meta + JSON-LD. So title/description/date/images are all extractable via regex on the fetched HTML — do NOT reach for a headless browser for Patreon.
+**IMPORTANT STATUS CHANGE**: As of 2026-08-05, **plain HTTP fetches to Patreon now fail with HTTP 403 + Cloudflare Turnstile challenge**, identical to Thangs' blocking (see below). The previous learning "no headless browser needed" is now OUTDATED — Patreon's infrastructure changed mid-2026.
+
+This was discovered by a real Add Model prefill flow: scrapeUrl() never checked `resp.ok`, so the 403 challenge HTML (title "Just a moment...", ~5.8KB, no metadata) was parsed as real content and returned to the frontend with zero images, silently producing garbage prefill. The frontend showed nothing (no error banner) because imagesFailed[] is not surfaced in the UI.
+
+**Fix implemented 2026-08-05**: `scrapeUrl()` in `api/src/importers/index.js` now checks `resp.ok` before attempting to parse the response body, throwing immediately with the HTTP status if `!resp.ok`. This surfaces a clear error to the user (502 Bad Gateway in the Add Model UI) instead of silent zero-image garbage.
+
+To restore Patreon scraping (title/description/date/images), the Patreon importer needs:
+1. `render: true` flag to route through browserless (like Thangs)
+2. A configured and working BROWSERLESS_URL
+3. Stealth mode enabled on the browserless instance
+
+**Historical note**: The old learning below was correct for as long as it held (Patreon server HTML did carry full OG metadata when fetched), but the site's protection changed. This pattern applies to other sites too — always verify with a live curl before assuming a site's protection status.
+
+## Patreon scraping (historical — now blocked)
+
+Patreon post pages are a JS-rendered SPA (Next.js — tags carry `data-next-head`), and historically the server HTML from a plain `fetch` with a browser User-Agent already carried full metadata: Open Graph + Twitter card + `article:*` meta + JSON-LD. So title/description/date/images were extractable via regex on the fetched HTML. This is no longer true as of 2026-08-05 (see status change above).
 
 ### Meta field specifics
 
@@ -60,6 +75,25 @@ Thangs proxies all images through Next/Image: `/_next/image?url=<url-encoded-ori
 **Alt-text exact match is necessary but not sufficient — Thangs also reuses the same alt text for its own auto-generated preview.** Live-page verification (not just the unit-test HTML fixture) turned up a second `<img>` that exactly matches `alt="<model title> 3d model"`: Thangs' own 3D-viewer preview thumbnail, rendered via a reused `ModelThumbnail` component elsewhere on the page. It passes the alt filter but is not a real designer-uploaded photo (it also happened to be a 404 in the session that found it, which is what made it noticeable — but the real problem is it's the wrong *kind* of image regardless of link health). The two classes differ in URL origin bucket: real gallery photos live under `storage.googleapis.com/production-thangs-public/uploads/attachments/...`, while the auto-generated preview lives under `storage.googleapis.com/thangs-thumbnails/production/...`. **Fix:** after the alt-text match, additionally exclude any URL containing `/thangs-thumbnails/`.
 
 General lesson for future per-site importers: a single exact-match filter (alt text, class name, any one attribute) can look airtight because it correctly excludes the *obvious* false positives (e.g. unrelated recommendation-carousel images with a different alt) while still passing a same-labeled decorative/auxiliary element elsewhere on the page. If an attribute is reused for more than one purpose on a real page (thumbnails, avatars, previews), a second signal is usually needed to fully disambiguate — URL path/bucket/domain is often reliable since site-generated assets and user-uploaded content tend to be served from different storage locations. This class of bug is invisible in a synthetic HTML fixture that only encodes the "obvious" false positive — it surfaces only when checked against the real, live page.
+
+## HTTP response validation: always check resp.ok before parsing
+
+A fetch response with `Content-Type: text/html` and HTTP 403 or 502 contains an error page (challenge, 404 message, server error), not real content. Parsing the HTML as if it were real will extract the error page's title, description, and any embedded images — silently returning garbage to the caller.
+
+**Pattern**: immediately after `fetch()`, check `resp.ok` (true only for 200–299 status codes). If `!resp.ok`, throw the status and message. Do NOT parse the body.
+
+```javascript
+const resp = await fetch(url, options);
+if (!resp.ok) {
+  throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+}
+const html = await resp.text();
+// ... now safe to parse html ...
+```
+
+Live case this session (2026-08-05): Patreon now returns 403 + Cloudflare challenge HTML when fetched with plain HTTP. The challenge page's HTML contains a `<title>Just a moment...</title>` and some scripts but no OG metadata. scrapeUrl() was parsing it anyway, extracting title="Just a moment..." and images=[], silently returning garbage to the Add Model UI. The fix was a resp.ok check at the entry point, so the first real 403 now throws with status "HTTP 403 Forbidden", which routes.js surfaces as a 502 error the frontend can display.
+
+This is different from "did the request fail" (which would be thrown by fetch for network errors) — HTTP errors (400/403/500) are successful network responses, just with error status codes. The response body might even be well-formed HTML. The distinction matters because you can't tell by Content-Type alone whether HTML is real content or an error page.
 
 ### Downloading scraped images: don't reject on Content-Type alone
 
