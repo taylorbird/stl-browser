@@ -124,6 +124,65 @@ kill -INFO <cp-pid>
 
 Useful for long background copies to confirm the process isn't hung.
 
+## Image pooling: enriching imports with companion post galleries
+
+### Creators split models across two posts
+
+Patreon creators often publish a "release" post (model files + 1 hero photo) and a separate "showcase" post (full photo gallery, same or very similar title, published within a few days). Collection-URL imports fetch only the release-post images, leaving models with a single image each.
+
+Session 2026-08-05: Blob Lab's 41 imported models all had exactly 1 image, despite the creator having uploaded far more photos to Patreon. Investigation found that all 41 release posts had 1 image, but every release post had a companion showcase post with 3-21 images published 0-7 days later.
+
+### Pairing by title + date proximity
+
+To enrich an import without re-downloading model files:
+
+1. **Crawl the creator's page** to fetch all post metadata (ID, title, date, image count).
+2. **Extract post IDs from existing metadata.md** — the `post_id:` field records where each model came from.
+3. **Pair each imported model to a companion post** using:
+   - Title similarity (normalize: lowercase + alphanumeric only, strip suffix noise)
+   - Date proximity (select the closest companion post, reject any >45 days away)
+   - Rationale: companions publish 0-7 days from release; >45 days is a re-release or a different model
+
+**Critical safeguards discovered via dry-run**:
+
+- **Use date-nearest, NOT most-images**: Blob Lab re-released "Blob Bunny" a year later (post 125792493, 2025-04-02, 12 images) with identical title. Selecting most-images would grab the newer, wrong version. Date-nearest selects the correct original (post 100011633, +1 day, 8 images).
+- **Strip title suffixes before matching**: Two models ("Blob Snowflake Ornaments (Bonus)" and "Blob Chocolate Bunny (Bonus)") keep their galleries under suffixed titles. Exact-string matching would have reported them as unmatched. Strip patterns: `(Old)`, `(Bonus)`, `(Beta)`, `(New)`, `(Updated)`, `(Extra)`, `(Part N)` before comparing.
+- **Reject pairings >45 days apart**: Safely bounds the search to true companions. This session's 41 models all paired within 7 days; gaps >45 days indicate a re-release or unrelated post.
+
+### Downloading images without re-downloading files
+
+Once pairings are confirmed (including dry-run spot-checks), download images ONLY using gallery-dl's `-o files=images` option:
+
+```bash
+gallery-dl -o "files=images" -o "base-directory=/path/to/models" \
+  "https://www.patreon.com/posts/123456"
+```
+
+This option fetches images only, never re-downloads model files even if they exist in the target folder. 28 duplicates are detected and skipped automatically.
+
+### Preview pinning before bulk indexing
+
+The flat-per-model indexer picks its preview as the first image alphabetically when metadata.md has no explicit `preview:` field. Adding 475 new images to an existing import would silently shuffle nearly every card thumbnail to an arbitrary shot (depending on filename ordering over SMB).
+
+**Solution**: Before reindexing, pin the original release-post hero image as an explicit `preview:` line in metadata.md:
+
+```yaml
+---
+title: Blob Dim Sum
+creator: Blob Lab
+preview: Blob-Lab-Dim-Sum11m.jpg
+post_id: 123456789
+---
+```
+
+Verify after reindex that card previews haven't shifted. This session: all 41 models correctly pinned; spot-check on Blob Dim Sum confirmed it still previews the release-post hero.
+
+### Models from /add flow lack post_id
+
+Models created via the Add Model UI don't have a `post_id:` field in metadata.md, so any tooling keyed on post_id will skip them. This session: blob-plants-desert was manually added in a prior session, so it wasn't in the 41-model pairing. Topped up manually from its known companion post (146524585): +18 images, 3→21 total.
+
+This is expected behavior (the /add flow captures URLs but not post IDs from Patreon), but worth noting for future bulk-enrichment scripts — check for models with no post_id and add them manually or extend the tooling to extract post IDs from existing patreon_url fields in metadata.md.
+
 ## Future optimization: .3mf slicer previews
 
 Sliced .3mf files embed a slicer plate preview at `Metadata/plate_1.png` inside the archive (a zip). This is a viable fallback source for per-model thumbnails when a creator ships no render images:

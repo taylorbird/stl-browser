@@ -56,3 +56,11 @@ Durable hard rules with date + rationale. One-liners summarizing these are maint
 ## Always read actual Vite startup log for port (don't assume 5173)
 **Date**: 2026-08-05
 **Rationale**: Vite picks the next available port when the default (5173) is occupied. In 2026-08-05 session, campfinder was running on 5173 and Vite picked 5174. Always check the startup log output rather than hardcoding assumptions about port choice.
+
+## Pin `preview:` explicitly before bulk-adding images
+**Date**: 2026-08-05
+**Rationale**: The indexer's fallback preview selection (first image alphabetically) is nondeterministic over SMB and doesn't account for newly-added images. Adding 475 images to 41 existing models silently reshuffled nearly every card thumbnail to an arbitrary shot when the full reindex ran. Before bulk-adding images, pin the intended preview in metadata.md with an explicit `preview: filename.jpg` field. Verify afterward that card previews didn't shift (spot-check via the UI or direct folder/DB inspection).
+
+## Verify pushed Docker manifests are ARM64
+**Date**: 2026-08-05
+**Rationale**: Cross-arch Docker builds from an Apple-silicon Mac to linux/arm64 require a buildx docker-container builder and an explicit `--push` flag. After pushing, verify the image actually landed as ARM64 (not accidentally as amd64 or unknown) via `docker buildx imagetools inspect <image:tag>`. The output includes platform entries and an "unknown/unknown" SLSA attestation entry (normal and harmless). Presence of `linux/arm64` in the Manifests section confirms successful push; absence indicates a build/push failure.
