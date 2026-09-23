@@ -4,7 +4,7 @@
 
 - Does Koza Design have the same two-post structure as Blob Lab? (2026-08-05, open — informational, low priority): Blob Lab's 41 models are now paired with companion showcase posts carrying 475 pooled gallery images. Koza Design imports carry 3-5 images per model on average, so the companion-post pattern may not exist for them, or the gallery enrichment may not be worthwhile. Worth a quick investigation if Taylor wants uniformly richer image coverage across creators.
 
-- Docker images pushed but Pi not yet updated (2026-08-05): rebuilt both ARM64 images (curio-api:latest, curio-web:latest) containing the missing-files and blocked-scrape fixes + image pooling/preview pinning. Pushed to Docker Hub and verified manifests are ARM64 via docker buildx imagetools inspect. Pi deployment needs to `docker pull` to fetch the new images — still pending as of end of session.
+- Pi update in progress (2026-09-23): Taylor was pulling the 2026-08-05 ARM64 images (curio-api:latest, curio-web:latest) onto the Pi at machine handoff. Confirm it came up healthy, then move this to Resolved.
 
 - Patreon scrape prefill is BROKEN until browserless + render: true (2026-08-05): as of this session, Patreon now answers plain server-side fetches with HTTP 403 + Cloudflare challenge HTML (title "Just a moment...", ~5.8KB), not the full OG-rich page anymore. The scrapeUrl() fix checks resp.ok and throws immediately, so prefill now surfaces "502 Bad Gateway" instead of silently returning zero-image garbage. The resp.ok fix itself IS committed (5cbdf2c) and applies to every plain-fetch importer. What is still missing: the Patreon importer needs `render: true` (a one-line change, deliberately NOT made because it could not be verified) plus a configured BROWSERLESS_URL + token, and it is UNVERIFIED whether browserless actually clears Patreon's Cloudflare — test that before flipping the flag.
 
@@ -18,9 +18,7 @@
 
 - Two Nostalgic 3D models use pack group render as fallback (2026-08-05): Kif Chewbacca and Zapp Han Solo. The import script's fuzzy render matching fell back to the pack group image because the author's render filenames diverge too far from folder names ("Kif Kroker Chewy" vs "Kif Chewbacca", "Zapp Brannigan Han Solo" vs "Zapp Han Solo"). A hand-mapping of these two would fix them; low priority.
 
-- Local disk cleanup pending (2026-08-05): ~/Downloads/process/_extracted (~26 GB), original Nostalgic3D zips (~14 GB), and /Users/tbird/dev/3dprint/Nostalgic3D (21 GB) can now be deleted since the NAS copy is verified byte-for-byte. Local bloblab copy was already cleaned this session.
-
-- Push status of local commits (2026-08-05): main is at cf9de7d, TWO commits AHEAD of origin/main (9d9faf2): 5cbdf2c (bulk import + fixes) then cf9de7d (checkpoint docs). Decide whether to push: all, first commit only (holding checkpoint docs), or neither. Working tree is clean.
+- Old-Mac disk cleanup pending (2026-08-05, updated 2026-09-23): ~/Downloads/process/_extracted (~26 GB), original Nostalgic3D zips (~14 GB), and repo-local Nostalgic3D/ (21 GB) can be deleted — NAS copy verified byte-for-byte. Repo-local Gazzaladra/ (14 GB) and KozaDesign/ (574 MB) were never verified against the NAS; check before deleting.
 
 - .mp4 (video) uploads (2026-06-10): the upload allowlist currently blocks them (model files limited to stl/3mf/obj/step/stp/zip/pdf). The library has exactly 1 .mp4. Taylor to decide whether to allow video uploads.
 
@@ -37,6 +35,8 @@
 - Multi-arch Docker builds: curio-* images are ARM64-only; buildx multi-platform manifest would serve non-Pi users (README currently tells them to build their own).
 
 # Resolved
+
+- Push status of local commits — RESOLVED 2026-09-23: all pushed (origin/main advanced 9d9faf2..09a6dce, then the handoff commit on top). Verified after fetch that origin had nothing local lacked.
 
 - Image richness for Blob Lab — RESOLVED 2026-08-05: initially discovered all 41 imported Blob Lab models had exactly 1 image each, and assumed this reflected the source data. Root cause turned out to be the Patreon collection-URL import fetching only release-post images; Patreon creators split models across TWO posts (release + showcase/gallery). Developed image-pooling technique to pair models with companions by title + date proximity, safely handling re-releases (date-nearest selection, not most-images) and suffix variations like (Bonus)/(Old)/(Beta). Successfully enriched 41 models to avg 12.8 images/model (min 5, max 21). Also manually enriched blob-plants-desert (hand-added, outside the import pipeline) from +18 images. Cross-validated the pairing method via independent in-body link verification (5 models, 100% match). Blob Lab now has uniformly richer image coverage; see Koza Design two-post structure as an open question for potential future enrichment.
 
