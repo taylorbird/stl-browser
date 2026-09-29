@@ -64,3 +64,8 @@ Durable hard rules with date + rationale. One-liners summarizing these are maint
 ## Verify pushed Docker manifests are ARM64
 **Date**: 2026-08-05
 **Rationale**: Cross-arch Docker builds from an Apple-silicon Mac to linux/arm64 require a buildx docker-container builder and an explicit `--push` flag. After pushing, verify the image actually landed as ARM64 (not accidentally as amd64 or unknown) via `docker buildx imagetools inspect <image:tag>`. The output includes platform entries and an "unknown/unknown" SLSA attestation entry (normal and harmless). Presence of `linux/arm64` in the Manifests section confirms successful push; absence indicates a build/push failure.
+
+## Context / work state: Confirmed working-style rules live in repo, not machine-local memory
+**Date**: 2026-09-23 (MACHINE HANDOFF)
+**Rationale**: Claude's auto-memory is machine-local and keyed by project path; it does not travel to a new computer. During the 2026-09-23 handoff, working-style rules that lived in the old Mac's machine-local memory were at risk of being lost. These rules are critical for agents to follow (ARM64 deploy target, just run named operations without probing, implement directly when plan has complete code, no chrome-devtools MCP). To ensure continuity and availability to agents on any machine, confirmed working-style rules were moved into the repo itself (.claude/work/working-style.md) and checked into git. Unconfirmed candidates remain in preferences.md and constraints.md as candidates for future promotion.
+**Status**: ACTIVE. All confirmed working-style rules are now in the repo at .claude/work/working-style.md. Agents will read this file for working-style guidance; it takes precedence over machine-local memory.

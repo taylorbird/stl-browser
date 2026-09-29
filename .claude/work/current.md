@@ -3,11 +3,9 @@
 **Project**: CURIO (containerized web UI for browsing/searching 3D print files from NAS)
 **Objective**: Full-stack gallery app (Node/Express API + React/Vite, SQLite+FTS5, Tailwind UI) with multi-user favorites/collections, creator weights, and model upload flow.
 
-**Current Focus (2026-09-23 — MACHINE HANDOFF)**: Work is moving off the old Mac to a new machine. Verified 2026-09-23: `main` == `origin/main` at 09a6dce (everything committed + pushed; no stashes, no other worktrees). Docker Hub `curio-api:latest` / `curio-web:latest` (built 2026-08-05 18:59 PDT, ARM64) postdate the last api/web code commit (5cbdf2c), so they contain current code — no rebuild needed. Taylor is pulling them onto the Pi. Things git does NOT carry are listed under "New-machine setup" below.
+**Current Focus (2026-09-23 — MACHINE HANDOFF)**: Work moved off the old Mac to a new machine. Verified: `main` == `origin/main` at b4a1557 (all work committed + pushed). Docker Hub images (curio-api:latest, curio-web:latest, built 2026-08-05, ARM64) postdate the last code change (5cbdf2c), so they are current. CLAUDE.md and .claude/work/working-style.md added to repo so agents have the confirmed working-style rules. Pi pull of new images in progress.
 
-**Previous focus (2026-08-05 — updated 19:00)**: Continuation of bulk-import session. Earlier checkpoint (18:11) recorded 124 model imports + critical backend bug fixes. This follow-up focused on image richness for Blob Lab: discovered that Patreon's Blob Lab posts are SPLIT across two posts — release post with model files + hero photo, and companion showcase post with full gallery under the same title. Imported models had only 1 image because we used collection URLs (release-post-only). Developed **image pooling** technique: paired all 41 models to companion posts via title + date proximity (with critical safeguards: date-nearest instead of most-images to handle re-releases, suffix-stripping like (Bonus)/(Old) for exact matching). Cross-validated via in-body link analysis on subset, confirming correctness. Added 475 gallery images (28 already-present skipped); pinned original release-post hero image as explicit `preview:` field before reindexing to prevent alphabetical shuffle of nearly every card. Blob Lab final: 42 models, avg 12.8 images/model (was 1). Also: rebuilt and pushed both ARM64 Docker Hub images (taylorlbird/curio-api:latest + curio-web:latest); verified pushed manifests are ARM64 via docker buildx imagetools inspect. Main now at cf9de7d (2 commits ahead of origin/main), NOT yet pushed.
-
-**Last Checkpoint**: 2026-09-23 (handoff); previous 2026-08-05 19:00 PDT
+**Last Checkpoint**: 2026-09-29 14:31 PDT
 
 ## New-machine setup (not in git)
 - **Clone**: remote is `github.com-personal:taylorbird/stl-browser.git` — an SSH host alias (see learnings/ssh-multi-github.md); on a machine without that alias use `git@github.com:taylorbird/stl-browser.git`.
@@ -31,6 +29,7 @@ See constraints.md for full ledger. One-liners:
 - **Creator name matching**: must match library exactly before bulk import to avoid duplicate creator chips.
 - **NAS copy verification**: byte-level (names + sizes), not folder counts (truncation hidden in counts).
 - **Safety hook blocks `rm -rf /...`**: use `find <path> -depth -delete` for targeted removal.
+- **Working-style rules**: confirmed ones live in .claude/work/working-style.md (repo), not machine-local memory.
 
 ## Next Actions
 1. **Confirm the Pi is on the new images**: Taylor was running `docker compose pull && docker compose up -d` on the Pi at handoff (2026-09-23). Confirm with him that it came up healthy.

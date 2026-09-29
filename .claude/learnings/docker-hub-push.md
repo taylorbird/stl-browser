@@ -51,3 +51,19 @@ Manifests:
 ```
 
 Presence of `linux/arm64` in the Manifests section confirms the push succeeded for the target platform. The "unknown/unknown" entry below it is not a sign of a failed or multi-platform build — it's the attestation manifest added by buildx automatically.
+
+## Checking a live image is current
+
+When troubleshooting whether a live Docker Hub image contains current code, compare the image's config `created` timestamp against the last code commit in the tracked directories:
+
+```bash
+# Get the image's created timestamp (UTC)
+docker buildx imagetools inspect <image>:latest --format '{{json .Image}}' | jq '.created'
+
+# Get the last commit time for the directories that affect the image (api/ and web/)
+git log -1 --format='%h %ci' -- api web
+```
+
+If the image `created` timestamp is **after** the last code commit timestamp, the image is current and contains all committed code. If it's before, the code has been updated since the image was built, so a rebuild and push are needed.
+
+Example: image created at `2026-08-05T18:59:00Z` (UTC) and last code commit at `2026-08-05 18:10 PDT` (2026-08-05T01:10:00Z UTC) — image postdates code by hours, so it's current. Verify with both the image's own `created` field and the timestamp of the last commit touching the relevant directories.

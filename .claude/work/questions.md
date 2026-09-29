@@ -4,7 +4,7 @@
 
 - Does Koza Design have the same two-post structure as Blob Lab? (2026-08-05, open — informational, low priority): Blob Lab's 41 models are now paired with companion showcase posts carrying 475 pooled gallery images. Koza Design imports carry 3-5 images per model on average, so the companion-post pattern may not exist for them, or the gallery enrichment may not be worthwhile. Worth a quick investigation if Taylor wants uniformly richer image coverage across creators.
 
-- Pi update in progress (2026-09-23): Taylor was pulling the 2026-08-05 ARM64 images (curio-api:latest, curio-web:latest) onto the Pi at machine handoff. Confirm it came up healthy, then move this to Resolved.
+- Pi update in progress (2026-09-23): Taylor was pulling the 2026-08-05 ARM64 images (curio-api:latest, curio-web:latest) onto the Pi at machine handoff. Confirm it came up healthy, then move this to Resolved. Status as of 2026-09-29 checkpoint: still unconfirmed.
 
 - Patreon scrape prefill is BROKEN until browserless + render: true (2026-08-05): as of this session, Patreon now answers plain server-side fetches with HTTP 403 + Cloudflare challenge HTML (title "Just a moment...", ~5.8KB), not the full OG-rich page anymore. The scrapeUrl() fix checks resp.ok and throws immediately, so prefill now surfaces "502 Bad Gateway" instead of silently returning zero-image garbage. The resp.ok fix itself IS committed (5cbdf2c) and applies to every plain-fetch importer. What is still missing: the Patreon importer needs `render: true` (a one-line change, deliberately NOT made because it could not be verified) plus a configured BROWSERLESS_URL + token, and it is UNVERIFIED whether browserless actually clears Patreon's Cloudflare — test that before flipping the flag.
 
